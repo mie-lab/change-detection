@@ -1,0 +1,10 @@
+trackintel/*
+scikit_mobility/*
+
+
+.ipynb_checkpoints/
+.vscode/
+__pycache__/
+
+config.py
+*.pkl
