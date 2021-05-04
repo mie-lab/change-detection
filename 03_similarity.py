@@ -31,15 +31,15 @@ def _encode(ori_str, mode_dict):
     return "".join(i for i, _ in itertools.groupby(ori_str.replace(",", "")))
 
 
-# replace the ori_str to mode_dict, and split into list
 def _split(ori_str, mode_dict):
+    """replace the ori_str to mode_dict, and split into list"""
     for mode, value in mode_dict.items():
         ori_str = ori_str.replace(mode, value)
     return ori_str.split(",")
 
 
-# get unique mode to a dict
 def _get_unique(ls):
+    """Get unique mode to a dict"""
     output = set()
     for x in ls:
         for sub in x.split(","):
@@ -49,11 +49,10 @@ def _get_unique(ls):
     return mode_dict
 
 
-# distance matrix calculation
 def calculate_distance_matrix(df, return_dict, distance="dtw"):
-
     """
-    distance = ['ed', 'dtw', 'symm']
+    distance matrix calculation.
+    distance = ['ed', 'dtw', 'symm', "jd"]
     """
 
     n = len(df)
@@ -119,6 +118,7 @@ def getDurDist(df):
 
 
 def _ifOnlyWalk(row):
+    """return True if only one mode is used and this mode is Walk."""
     modes = set(row.split(","))
     walkExist = "Mode::Walk" in modes
     length = len(modes) == 1
@@ -128,6 +128,7 @@ def _ifOnlyWalk(row):
 if __name__ == "__main__":
     time_window = 5
 
+    ## get activity set trips
     actTrips_df = pd.read_csv(os.path.join(config["S_act"], f"{time_window}_10_tSet.csv"))
     trips_df = pd.read_csv(
         os.path.join(config["S_proc"], "trips_forMainMode.csv"),
@@ -142,6 +143,7 @@ if __name__ == "__main__":
     actTrips = actTrips_df["tripid"].unique()
     t_df = trips_df.loc[trips_df["id"].isin(actTrips)].copy()
 
+    ## define how to select modes
     # Case1: every mode, Boat = Bus, no airplane
     # mode_dict = {
     #     "Mode::Airplane": "",
@@ -163,7 +165,7 @@ if __name__ == "__main__":
     # mode_dict = {'Mode::Airplane':'a', 'Mode::Bicycle':'b', 'Mode::Boat':'d', 'Mode::Bus':'d', 'Mode::Car':'e', 'Mode::Coach':'f','Mode::Ebicycle':'b','Mode::Ecar':'e','Mode::Ski':'','Mode::Train':'i','Mode::Tram':'j','Mode::Walk':'k'}
     # t_df['mode'] = [_encode(i, mode_dict) for i in t_df['mode_ls'].to_list()]
 
-    # Case3: Case1 + no walk mode if combined
+    # Case3: Case1 + no walk mode if combined with other mode
     mode_dict = {
         "Mode::Airplane": "",
         "Mode::Bicycle": "b",
@@ -180,7 +182,9 @@ if __name__ == "__main__":
     }
 
     ifOnlyWalk = t_df["mode_ls"].apply(_ifOnlyWalk)
+    # only walk is assigned k
     t_df.loc[ifOnlyWalk, "mode"] = "k"
+    # other trips ignore walk
     t_df.loc[~ifOnlyWalk, "mode"] = [_encode(i, mode_dict) for i in t_df.loc[~ifOnlyWalk, "mode_ls"].to_list()]
 
     # Case4: Case2 + no walk mode if combined
@@ -189,19 +193,18 @@ if __name__ == "__main__":
     # t_df.loc[ifOnlyWalk, 'mode'] = 'k'
     # t_df.loc[~ifOnlyWalk, 'mode'] = [_encode(i, mode_dict) for i in t_df.loc[~ifOnlyWalk, 'mode_ls'].to_list()]
 
-    # for performance choose subset
+    ## for performance choose subset
     # t_df = t_df.groupby('userid').head(100)
     # t_df = t_df.loc[t_df['userid'].isin(t_df['userid'].unique()[:5])]
-
     # print(t_df.head(20))
 
-    # valid users
+    ## select only valid users
     valid_user = pd.read_csv(config["results"] + "\\SBB_user_window_filtered.csv")["user_id"].unique()
     valid_user = valid_user.astype(int)
     t_df = t_df.loc[t_df["userid"].isin(valid_user)]
     print("User number:", t_df["userid"].unique().shape[0])
 
-    # mode
+    ## similarity for mode
     manager = multiprocessing.Manager()
     mode_dict = manager.dict()
     jobs = []
@@ -213,16 +216,17 @@ if __name__ == "__main__":
         p.start()
     for proc in jobs:
         proc.join()
-
-    # length
-    len_dict = t_df.groupby("userid").apply(getLengthDist).to_dict()
-    # duration
-    dur_dict = t_df.groupby("userid").apply(getDurDist).to_dict()
-
     print("Mode distance number:", len(mode_dict))
 
-    # combined
+    ## similarity for length
+    len_dict = t_df.groupby("userid").apply(getLengthDist).to_dict()
+
+    ## similarity for duration
+    dur_dict = t_df.groupby("userid").apply(getDurDist).to_dict()
+
+    ## combined similarity
     all_dict = {}
+    # k is the user, v the mode pairwise distance matrix
     for k, v in mode_dict.items():
         all_dict[k] = {}
 
@@ -247,6 +251,7 @@ if __name__ == "__main__":
         # equal weight
         # all_dict[k]["all"] = all_dict[k]["mode"] + all_dict[k]["len"] + all_dict[k]["dur"]
 
+    # save the combined distance matrix
     with open(config["S_similarity"] + f"/case3_distance_{time_window}.pkl", "wb") as f:
         pickle.dump(all_dict, f, pickle.HIGHEST_PROTOCOL)
 

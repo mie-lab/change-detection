@@ -32,6 +32,10 @@ def HHI_index(df):
 
 
 def thresholding_algo(y, lag, threshold, influence):
+    """
+    Peak detection algorithm.
+    From https://stackoverflow.com/questions/22583391/peak-signal-detection-in-realtime-timeseries-data
+    """
     signals = np.zeros(len(y))
     filteredY = np.array(y)
     avgFilter = [0] * len(y)
@@ -57,7 +61,7 @@ def thresholding_algo(y, lag, threshold, influence):
     return dict(signals=np.asarray(signals), avgFilter=np.asarray(avgFilter), stdFilter=np.asarray(stdFilter))
 
 
-def get_HHI_sequence(df, home_change_points=None):
+def _HHI(df):
 
     window_size = 5
 
@@ -113,28 +117,7 @@ def get_HHI_sequence(df, home_change_points=None):
     plt.savefig(curr_path + "/signals.png", bbox_inches="tight", dpi=600)
     plt.close()
 
-    # plt.plot(legend="", figsize=(6.4, 2.4))
-
-    # flag = False
-    # for i in range(signals.shape[0] - 1):
-    #     if signals[i] == 0:
-    #         flag = False
-    #         continue
-    #     else:
-    #         if signals[i] == signals[i + 1]:
-    #             flag = True
-    #             if signals[i] == 1:
-    #                 plt.axvspan(xmin=idx[i], xmax=idx[i + 1], facecolor="green", alpha=0.2)
-    #             else:
-    #                 plt.axvspan(xmin=idx[i], xmax=idx[i + 1], facecolor="red", alpha=0.2)
-    #         else:  # only only line
-    #             if flag == False:
-    #                 if signals[i] == 1:
-    #                     plt.vlines(x=idx[i], ymin=0, ymax=1, color="green", alpha=0.2)
-    #                 else:
-    #                     plt.vlines(x=idx[i], ymin=0, ymax=1, color="red", alpha=0.2)
-    #             flag = False
-
+    ## for ploting timestep where the top1 location changed
     # for i, change_point in enumerate(home_change_points):
     #     if change_point == True:
     #         plt.vlines(x=idx[i + 1], ymin=0, ymax=1, color="red", alpha=0.8)
@@ -142,7 +125,7 @@ def get_HHI_sequence(df, home_change_points=None):
     return HHI_ls
 
 
-def get_change_point(df, threshold):
+def _sliding_window(df, threshold):
 
     window_size = 5
 
@@ -150,7 +133,7 @@ def get_change_point(df, threshold):
     start_date = df["startt"].min().date()
 
     dist_ls = []
-    # construct the sliding week gdf
+    # construct the sliding week gdf, to get the dist_ls (distribution for each timestep)
     for i in range(0, weeks - window_size + 1):
         curr_start = datetime.datetime.combine(start_date + datetime.timedelta(weeks=i), datetime.time())
         curr_end = datetime.datetime.combine(curr_start + datetime.timedelta(weeks=window_size), datetime.time())
@@ -164,6 +147,7 @@ def get_change_point(df, threshold):
         dist_ls.append(distribution)
 
     change_ls = []
+
     # start to ensure no overlapping change time
     start = 0
     curr_max = 0
@@ -180,6 +164,7 @@ def get_change_point(df, threshold):
                 combined = curr_dist.join(dist_ls[j], lsuffix="l", rsuffix="r")
                 change = np.abs(combined["Sizel"] - combined["Sizer"])
 
+                # add small term to allow pertubation
                 if change.max() + 0.05 < change_pre:
                     break
                 change_pre = change.max()
@@ -219,15 +204,14 @@ def get_change_point(df, threshold):
     return change_points
 
 
-# filter the final clustering result according to sample number
 def _filter(df, trip_num):
+    """filter the final clustering result according to sample number"""
     if df.shape[0] > trip_num * 0.03:
-        # if df.shape[0] > 3:
         return df
 
 
-# plot the relative distance and duration evolution of each package
-def _draw_relative_with_change(df, change_points, home_change_points=None):
+def _draw_relative_with_change(df, change_points):
+    """Plot the relative count evolution of each package"""
     window_size = 5
 
     weeks = (df["endt"].max() - df["startt"].min()).days // 7
@@ -260,26 +244,18 @@ def _draw_relative_with_change(df, change_points, home_change_points=None):
     )
 
     change_points_dict = change_points.to_dict("records")
-    first = change_points.sort_values(by="start").head(1)
-    # # count
+
+    # count
     count_df = pd.DataFrame(count_dic, index=idx)
     count_df.to_csv(curr_path + "/count_rel.csv")
     # turn to relative
     count_df = count_df.div(count_df["all"] / 100, axis=0)
     count_df.drop(columns="all", inplace=True)
+
+    ## plot the relative evolution
     count_df.plot(ylim=[0, 100])
-
-    # if len(first) > 0:
-    #     if first["start"].values[0] < 5:
-    #         return (first["end"] - first["start"]).values[0]
-    # return 0
-
     for change_point in change_points_dict:
         plt.axvspan(xmin=idx[change_point["start"]], xmax=idx[change_point["end"]], color="green", alpha=0.2)
-
-    # for i, change_point in enumerate(home_change_points):
-    #     if change_point == True:
-    #         plt.vlines(x=idx[i + 1], ymin=0, ymax=100, color="red", alpha=0.8)
 
     plt.ylabel("Trip proportion (%)", fontsize=16)
     plt.legend("", frameon=False)
@@ -288,9 +264,23 @@ def _draw_relative_with_change(df, change_points, home_change_points=None):
     plt.savefig(curr_path + "/count_rel_change.png", bbox_inches="tight", dpi=600)
     plt.close()
 
+    ## for getting the time and length of the first change period
+    # first = change_points.sort_values(by="start").head(1)
+    # if len(first) > 0:
+    #     if first["start"].values[0] < 5:
+    #         return (first["end"] - first["start"]).values[0]
+    # return 0
+
+    ## for ploting timestep where the top1 location changed
+    # for i, change_point in enumerate(home_change_points):
+    #     if change_point == True:
+    #         plt.vlines(x=idx[i + 1], ymin=0, ymax=100, color="red", alpha=0.8)
+
 
 # define which case to consider
 case = "case3"
+
+## get activity set trips: t_df
 actTrips_df = pd.read_csv(os.path.join(config["S_act"], "5_10_tSet.csv"))
 trips_df = pd.read_csv(
     os.path.join(config["S_proc"], "trips_forMainMode.csv"),
@@ -300,21 +290,19 @@ trips_df = pd.read_csv(
 actTrips = actTrips_df["tripid"].unique()
 t_df = trips_df.loc[trips_df["id"].isin(actTrips)].copy()
 
-# valid users
+## select only valid users
 valid_user = pd.read_csv(config["results"] + "\\SBB_user_window_filtered.csv")["user_id"].unique()
 valid_user = valid_user.astype(int)
 t_df = t_df.loc[t_df["userid"].isin(valid_user)]
 
-# use only 20 user first
-users = t_df["userid"].unique()
-
-
-with open("./home_change.pkl", "rb") as f:
-    dist_mat = pickle.load(f)
+## home location change result
+# with open("./home_change.pkl", "rb") as f:
+#     dist_mat = pickle.load(f)
 
 res = []
 
-users = [1659]
+# users = [1659]
+users = t_df["userid"].unique()
 # for user, home_change_points in dist_mat.items():
 for user in tqdm(users):
     # print(user)
@@ -345,22 +333,23 @@ for user in tqdm(users):
         top5 = df["cluster"].value_counts().head(5).index
         df = df.loc[df["cluster"].isin(top5)]
 
+    # end period cut
     end_period = datetime.datetime(2017, 12, 25)
     df = df.loc[df["endt"] < end_period]
 
-    # sliding window change
-    change_points = get_change_point(df, threshold=0.30)
-    # print(change_points)
+    # sliding window change detection
+    change_points = _sliding_window(df, threshold=0.30)
     # _draw_relative_with_change(df, change_points, home_change_points)
     _draw_relative_with_change(df, change_points)
+    # ranges = _draw_relative_with_change(df, change_points)
     # if ranges != 0:
     #     res.append(ranges)
 
-    # HHI change - CV
+    # HHI change detection
     # HHI_ls = get_HHI_sequence(df, home_change_points)
-    HHI_ls = get_HHI_sequence(df)
-#     res.append([np.std(HHI_ls) / np.mean(HHI_ls), user])
+    HHI_ls = _HHI(df)
 
+## claculate change period statistics
 # res = np.array(res)
 # print(res.mean(), res.min(), res.max())
 # print(len(res))
@@ -368,5 +357,3 @@ for user in tqdm(users):
 # plt.show()
 # print(np.median(res))
 # print(np.std(res))
-# change_df = pd.DataFrame(res, columns=["cv", "user"])
-# print(change_df.sort_values(by="cv", ascending=False))

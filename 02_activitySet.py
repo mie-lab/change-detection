@@ -13,8 +13,8 @@ from config import config
 plt.rcParams["figure.dpi"] = 400
 
 
-# get locations within the activity set
 def _get_act_locs(df, time_window=20, filter_len=10):
+    """Definition of locations within the activity set."""
     if df.shape[0] >= 2:
         avg_duration_min = df["dur_s"].sum() / 60 / time_window
         if avg_duration_min < filter_len:
@@ -46,12 +46,10 @@ def get_curr_trips(t, stps, ASet):
 
     # enrich with loc id
     valid_t = valid_t.merge(valid_stps[["id", "locid"]], left_on="nstpid", right_on="id")
-
     valid_t.drop(columns={"id_y", "nstpid"}, inplace=True)
 
     # enrich with activity set class
     valid_t = valid_t.merge(ASet[["locid", "class"]], on="locid", how="left")
-
     valid_t.rename(columns={"locid": "nloc", "id_x": "tripid"}, inplace=True)
 
     return valid_t
@@ -111,13 +109,16 @@ def _extractActivitySet(time_window, filter_len):
     allSet = applyParallel(all_.groupby("userid"), _extractActivitySetSingle, time_window, filter_len).reset_index(
         drop=True
     )
+    # get the statistics for trips: trip count, distance and trip duration for each time step
     tripStat = applyParallel(all_.groupby("userid"), _getTripStatSingle, time_window, filter_len).reset_index(drop=True)
 
+    # clean up
     aSet = allSet.loc[allSet["type"] == "points"][["userid", "locid", "dur_s", "class", "timeStep"]]
     aSet.reset_index(drop=True, inplace=True)
     tSet = allSet.loc[allSet["type"] == "trips"][["userid", "tripid", "length_m", "dur_s", "nloc", "class", "timeStep"]]
     tSet.reset_index(drop=True, inplace=True)
 
+    # save
     aSet.to_csv(os.path.join(config["S_act"], f"{time_window}_{filter_len}_aSet.csv"), index=False)
     tSet.to_csv(os.path.join(config["S_act"], f"{time_window}_{filter_len}_tSet.csv"), index=False)
     tripStat.to_csv(os.path.join(config["S_act"], f"{time_window}_{filter_len}_stat.csv"), index=False)
@@ -131,34 +132,43 @@ def _extractActivitySetSingle(df, time_window, filter_len):
     aSet = pd.DataFrame([], columns=["userid", "locid", "dur_s", "class", "timeStep"])
     tSet = pd.DataFrame([], columns=["userid", "tripid", "length_m", "dur_s", "nloc", "class", "timeStep"])
 
-    # construct the sliding week gdf
+    # construct the sliding week gdf, i is the timestep
     for i in range(0, weeks - time_window + 1):
         # start and end time
         curr_start = datetime.datetime.combine(start_date + datetime.timedelta(weeks=i), datetime.time())
         curr_end = datetime.datetime.combine(curr_start + datetime.timedelta(weeks=time_window), datetime.time())
 
-        # currect gdf and extract the activity set
+        ## determine activity set locations
+        # get the currect time step points gdf
         curr_stps = df.loc[(df["startt"] >= curr_start) & (df["endt"] < curr_end) & (df["type"] == "points")]
+        # extract the activity set (loaction)
         curr_ASet = (
             curr_stps.groupby("locid", as_index=False)
             .apply(_get_act_locs, time_window=time_window, filter_len=filter_len)
             .dropna()
         )
 
+        # if no location, jump to next time step
         if curr_ASet.empty:
             continue
-        # result is the locations with stayed duration
 
+        # result is the locations with stayed duration class
         curr_ASet["timeStep"] = i
         aSet = aSet.append(curr_ASet)
 
-        # for determine activity set trips
+        ## determine activity set trips
+        # select activity set location
         curr_ASet = curr_ASet.loc[curr_ASet["class"] > 0]
+
+        # get the currect time step trips gdf
         curr_t = df.loc[(df["startt"] >= curr_start) & (df["endt"] < curr_end) & (df["type"] == "trips")]
         curr_tSet = get_curr_trips(curr_t, curr_stps, curr_ASet)
+
+        # result is the trips that ends at activity set locations
         curr_tSet["timeStep"] = i
         tSet = tSet.append(curr_tSet)
 
+    # clean up
     aSet.reset_index(drop=True)
     tSet.reset_index(drop=True)
     aSet["type"] = "points"

@@ -30,8 +30,9 @@ from sklearn.cluster import DBSCAN
 np.set_printoptions(precision=4)
 np.set_printoptions(suppress=True)
 
-# __k_Medoids clustering algorithm
+
 def __k_Medoids(data, trip_df, bound=[3, 20], repeat=10):
+    """__k_Medoids clustering algorithm"""
 
     print(data.shape)
 
@@ -83,10 +84,9 @@ def __k_Medoids(data, trip_df, bound=[3, 20], repeat=10):
     return trip_df, {"silhouette_df": sil_df, "best_inertia": best_inertia, "n_clusters": best_n}
 
 
-# result saving for __k_Medoids
 def __save_results(cluster_df, r_dict, curr_path, bound, idx):
+    """Result saving for __k_Medoids"""
     # plotting
-
     r_dict["silhouette_df"].max(axis=0).plot(label="")
 
     plt.title("Max silhouette score")
@@ -109,8 +109,8 @@ def __save_results(cluster_df, r_dict, curr_path, bound, idx):
     cluster_df.to_csv(curr_path + f"/{idx}_N{cluster_num}.csv", index=False)
 
 
-# index (WB and CH) for __hierarchy
 def _index(mat, c_index):
+    """index (WB and CH) for __hierarchy"""
     unique_clus = list(set(c_index))
     traj_num = len(c_index)
     clus_num = len(unique_clus)
@@ -144,7 +144,7 @@ def _index(mat, c_index):
 # __hierarchy clustering algorithm
 def __hierarchy(data, t_df, curr_path, bound, idx):
 
-    # the distance criteria is set to complete
+    # the distance criteria
     distance_criteria = "complete"
     # distance_criteria = 'average'
 
@@ -171,6 +171,7 @@ def __hierarchy(data, t_df, curr_path, bound, idx):
     for i in tqdm(range(bound[0], bound[1])):
         cluster_result = fcluster(Z, t=i, criterion="maxclust")
 
+        # use silhouette score
         score = silhouette_score(data, cluster_result, metric="precomputed")
 
         if score > best_score:
@@ -182,6 +183,7 @@ def __hierarchy(data, t_df, curr_path, bound, idx):
         # index_ls.append([i, WB, CH])
         t_df[f"hc_{i}"] = cluster_result
 
+    # plot showing the silhouette score for each cluster
     plt.plot(np.arange(bound[0], bound[1]), sil_list, label="")
 
     plt.title("Max silhouette score")
@@ -204,6 +206,7 @@ def __hierarchy(data, t_df, curr_path, bound, idx):
 
     t_df.to_csv(curr_path + f"/{idx}_N{cluster_num}.csv", index=False)
 
+    # get the WB and CH index
     # index_df = pd.DataFrame(index_ls, columns=["number", "WB_index", "CH_index"])
     # index_df.plot(x="number", y="WB_index", legend=False)
     # # plt.xlabel("# Clusters",fontsize = 16)
@@ -249,6 +252,7 @@ def cluster(dist, t_df, curr_path):
 if __name__ == "__main__":
     time_window = 5
 
+    ## get activity set trips
     actTrips_df = pd.read_csv(os.path.join(config["S_act"], f"{time_window}_10_tSet.csv"))
     trips_df = pd.read_csv(
         os.path.join(config["S_proc"], "trips_forMainMode.csv"),
@@ -259,22 +263,24 @@ if __name__ == "__main__":
     actTrips = actTrips_df["tripid"].unique()
     t_df = trips_df.loc[trips_df["id"].isin(actTrips)].copy()
 
+    ## open distance matrix
     with open(config["S_similarity"] + f"/case3_distance_{time_window}.pkl", "rb") as f:
         dist_mat = pickle.load(f)
 
-    # valid users
+    ## select only valid users
     valid_user = pd.read_csv(config["results"] + "\\SBB_user_window_filtered.csv")["user_id"].unique()
     valid_user = valid_user.astype(int)
     t_df = t_df.loc[t_df["userid"].isin(valid_user)]
     print(t_df["userid"].unique().shape[0])
 
+    ## parallel clustering
     jobs = []
     for user in t_df["userid"].unique():
 
         # get the distance matrix
         dist = dist_mat[user]["all"]
 
-        # the trip ID
+        # get the trip ID
         ut_df = t_df.loc[t_df["userid"] == user]
 
         # create the user folder

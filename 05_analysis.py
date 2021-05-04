@@ -8,7 +8,6 @@ import datetime
 
 from matplotlib import pyplot as plt
 import matplotlib
-import matplotlib.dates as mdates
 from itertools import groupby
 
 
@@ -19,22 +18,23 @@ matplotlib.rcParams["xtick.labelsize"] = 13
 matplotlib.rcParams["ytick.labelsize"] = 13
 # matplotlib.rcParams.update({'figure.autolayout': True})
 
-# get best cluster number according to WB_index
+
 def _get_optimal_cluster_num(filename):
+    """Get best cluster number according to WB_index"""
     df = pd.read_csv(filename)
     return df.loc[df["WB_index"] == df["WB_index"].min(), "number"].to_numpy()[0]
 
 
-# replace the ori_str to corresponding mode in mode_dict
 def _encode(ori_str, mode_dict):
+    """Replace the ori_str to corresponding mode in mode_dict"""
     for mode, value in mode_dict.items():
         ori_str = ori_str.replace(mode, value)
     # return ''.join(i for i, _ in itertools.groupby(ori_str))
     return ori_str.strip(",")
 
 
-# filter the final clustering result according to sample number
 def _filter(df, trip_num):
+    """Filter the final clustering result according to sample number"""
     if df.shape[0] > trip_num * 0.03:
         # if df.shape[0] > 3:
         return df
@@ -48,14 +48,14 @@ def _remove_all_consecutive(str1):
     return "".join(result_str)
 
 
-# get the splitted mode df from original df
 def _mode(df):
+    """Get the splitted mode df from original df"""
     df["mode_encode"] = df["mode_encode"].apply(_remove_all_consecutive)
     return pd.DataFrame(df["mode_encode"].str.split(",").tolist(), index=df["id"]).stack().value_counts() / df.shape[0]
 
 
-# enrich the original gdf with temporal and spatial info
 def _enrich(gdf):
+    """Enrich the original gdf with temporal and spatial info"""
     gdf = gdf.to_crs({"init": "epsg:2056"})
     gdf["length"] = gdf["geometry"].apply(lambda x: x.length) / 1000
 
@@ -69,8 +69,8 @@ def _enrich(gdf):
     return gdf
 
 
-# plot the relative frequency of each mode
-def _draw_freq(df):
+def _draw_mode_freq(df):
+    """Plot the relative frequency of each mode"""
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     unique_mode = df["mode"].unique()
     clusters = df["clusters"].unique()
@@ -90,25 +90,13 @@ def _draw_freq(df):
             ax.set_ylabel("Average frequency", fontsize=16)
 
 
-# plot the distance and duration scatter plot
-def _draw_stat(gdf):
+def _draw_scatter(gdf):
+    """plot the distance and duration scatter plot."""
     grouped = gdf.groupby("cluster")
-    ncols = 2
-    nrows = int(np.ceil(grouped.ngroups / ncols))
 
-    # fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(10,8), sharey=True, sharex=True)
-    fig, ax = plt.subplots()
+    _, ax = plt.subplots()
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
-    # max_len = gdf['length'].max()
-    # min_len = gdf['length'].min()
-    # bins = np.arange(min_len,max_len,(max_len-min_len)/30)
-    # for (key, ax) in zip(grouped.groups.keys(), axes.flatten()):
-    #     grouped.get_group(key)[['length','duration']].plot(kind='scatter', ax=ax, x='length', y='duration', label=f'Class {key}')
-    #     ax.set_xlabel('')
-    #     ax.set_ylabel('')
-    # fig.text(0.5, 0.04, 'Length (km)', ha='center')
-    # fig.text(0.04, 0.5, 'Duration (h)', va='center', rotation='vertical')
     for i, key in enumerate(grouped.groups.keys()):
         key = int(key)
         grouped.get_group(key)[["length_km", "dur_min"]].plot(
@@ -124,8 +112,8 @@ def _draw_stat(gdf):
     plt.xscale("log")
 
 
-# plot the absolute distance and duration evolution
 def _draw_absolute(df, all_df):
+    """Plot the absolute distance, duration and count evolution for activity set trips and all trips."""
     window_size = 5
     weeks = (df["endt"].max() - df["startt"].min()).days // 7
     start_date = df["startt"].min().date()
@@ -159,6 +147,7 @@ def _draw_absolute(df, all_df):
         start=start_date + datetime.timedelta(weeks=window_size), periods=weeks - window_size + 1, freq="W"
     )
 
+    # count
     count_df = pd.DataFrame(count_dic, index=idx)
     count_df.plot()
     count_df.to_csv(curr_path + "/count_abs.csv")
@@ -170,27 +159,29 @@ def _draw_absolute(df, all_df):
     plt.savefig(curr_path + "/count_abs.png", bbox_inches="tight")
     plt.close()
 
-    # dur_df = pd.DataFrame(dur_dic, index=idx)
-    # dur_df.plot()
-    # dur_df.to_csv(curr_path + "/dur_abs.csv")
-    # plt.ylabel("Duration (min/week)", fontsize=16)
-    # plt.xlabel("")
-    # plt.ylim([0, plt.ylim()[1] + 7])
-    # plt.legend(loc="upper right", prop={"size": 13})
-    # # plt.show()
-    # plt.savefig(curr_path + "/dur_abs.png", bbox_inches="tight")
-    # plt.close()
+    # duration
+    dur_df = pd.DataFrame(dur_dic, index=idx)
+    dur_df.plot()
+    dur_df.to_csv(curr_path + "/dur_abs.csv")
+    plt.ylabel("Duration (min/week)", fontsize=16)
+    plt.xlabel("")
+    plt.ylim([0, plt.ylim()[1] + 7])
+    plt.legend(loc="upper right", prop={"size": 13})
+    # plt.show()
+    plt.savefig(curr_path + "/dur_abs.png", bbox_inches="tight")
+    plt.close()
 
-    # dis_df = pd.DataFrame(dis_dic, index=idx)
-    # dis_df.plot()
-    # dis_df.to_csv(curr_path + "/dis_abs.csv")
-    # plt.ylabel("Distance (km/week)", fontsize=16)
-    # plt.xlabel("")
-    # plt.ylim([0, plt.ylim()[1] + 300])
-    # plt.legend(loc="upper right", prop={"size": 13})
-    # # plt.show()
-    # plt.savefig(curr_path + "/dis_abs.png", bbox_inches="tight")
-    # plt.close()
+    # distance
+    dis_df = pd.DataFrame(dis_dic, index=idx)
+    dis_df.plot()
+    dis_df.to_csv(curr_path + "/dis_abs.csv")
+    plt.ylabel("Distance (km/week)", fontsize=16)
+    plt.xlabel("")
+    plt.ylim([0, plt.ylim()[1] + 300])
+    plt.legend(loc="upper right", prop={"size": 13})
+    # plt.show()
+    plt.savefig(curr_path + "/dis_abs.png", bbox_inches="tight")
+    plt.close()
 
 
 # plot the relative distance and duration evolution of each package
@@ -317,6 +308,8 @@ mode_dict = {
 
 # define which case to consider
 case = "case3"
+
+## get activity set trips: t_df
 actTrips_df = pd.read_csv(os.path.join(config["S_act"], "5_10_tSet.csv"))
 trips_df = pd.read_csv(
     os.path.join(config["S_proc"], "trips_forMainMode.csv"),
@@ -326,20 +319,18 @@ trips_df = pd.read_csv(
 actTrips = actTrips_df["tripid"].unique()
 t_df = trips_df.loc[trips_df["id"].isin(actTrips)].copy()
 
-# valid users
+## select only valid users
 valid_user = pd.read_csv(config["results"] + "\\SBB_user_window_filtered.csv")["user_id"].unique()
 valid_user = valid_user.astype(int)
 t_df = t_df.loc[t_df["userid"].isin(valid_user)]
 
-# use only 20 user first
-users = t_df["userid"].unique()
-
-# all trips: trips_df
+## get all trips: trips_df. Only for absolute evolution
 trips_df["startt"] = pd.to_datetime(trips_df["startt"])
 trips_df["endt"] = pd.to_datetime(trips_df["endt"])
 trips_df["dur_min"] = (trips_df["endt"] - trips_df["startt"]).dt.total_seconds() / 60
 trips_df["length_km"] = trips_df["length_m"] / 1000
 
+users = t_df["userid"].unique()
 for user in tqdm(users):
     curr_path = config["S_cluster"] + f"\\{case}_cluster_5\\" + str(user)
 
@@ -384,6 +375,7 @@ for user in tqdm(users):
         df = df.loc[df["cluster"].isin(top5)]
 
     df["cluster"] = df["cluster"].astype("int")
+
     # trip count per cluster after filtering
     df.groupby("cluster").size().plot.bar(figsize=(10, 5))
     plt.xlabel(f"#Cluster {best_num}")
@@ -391,6 +383,7 @@ for user in tqdm(users):
     plt.savefig(curr_path + "\\num_filtered.png", bbox_inches="tight")
     plt.close()
 
+    # end period cut
     end_period = datetime.datetime(2017, 12, 25)
     df = df.loc[df["endt"] < end_period]
 
@@ -398,16 +391,16 @@ for user in tqdm(users):
     mode_freq = df.groupby("cluster").apply(_mode).dropna().reset_index()
     if len(mode_freq.columns) != 2:
         mode_freq.columns = ["clusters", "mode", "count"]
-        _draw_freq(mode_freq)
+        _draw_mode_freq(mode_freq)
         plt.savefig(curr_path + "/freq.png", bbox_inches="tight")
         plt.close()
 
     # 'length' and 'duration' scatter plot
-    _draw_stat(df)
+    _draw_scatter(df)
     plt.savefig(curr_path + "/stat.png", bbox_inches="tight", dpi=600)
     plt.close()
 
-    #
+    # relative evolution
     _draw_relative(df)
 
     # absolute evolution
