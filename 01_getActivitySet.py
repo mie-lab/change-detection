@@ -1,19 +1,16 @@
 import pandas as pd
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import datetime
-import sys, os, glob
+import os
 import multiprocessing
 from joblib import Parallel, delayed
 
-from config import config
-
-plt.rcParams["figure.dpi"] = 400
+from utils.config import config
 
 
-def _get_act_locs(df, time_window=20, filter_len=10):
+def _getActLocs(df, time_window=20, filter_len=10):
     """Definition of locations within the activity set."""
     if df.shape[0] >= 2:
         avg_duration_min = df["dur_s"].sum() / 60 / time_window
@@ -36,7 +33,7 @@ def _get_act_locs(df, time_window=20, filter_len=10):
         return pd.Series([avg_duration_min, len_class], index=["dur_s", "class"])
 
 
-def get_curr_trips(t, stps, ASet):
+def _getCurrTrips(t, stps, ASet):
     # get the locations in activity set
     valid_stps = stps.loc[stps["locid"].isin(ASet["locid"].unique())]
 
@@ -55,76 +52,23 @@ def get_curr_trips(t, stps, ASet):
     return valid_t
 
 
-def applyParallel(dfGrouped, func, time_window, filter_len):
+def applyParallel(dfGrouped, func, time_window):
     # multiprocessing.cpu_count()
     retLst = Parallel(n_jobs=multiprocessing.cpu_count())(
-        delayed(func)(group, time_window, filter_len) for name, group in tqdm(dfGrouped)
+        delayed(func)(group, time_window) for _, group in tqdm(dfGrouped)
     )
     return pd.concat(retLst)
 
 
 # get activity set for each user
-def _extractActivitySet(time_window, filter_len):
-    #
-    stps_gdf = pd.read_csv(os.path.join(config["S_proc"], "stps_act_user_50.csv"))
-    stps_gdf.rename(columns={"duration": "dur_s"}, inplace=True)
-
-    # we need the trip mode sequence
-    trips_gdf = pd.read_csv(os.path.join(config["S_proc"], "trips_forMainMode.csv"))
-
-    # time
-    trips_gdf["startt"], trips_gdf["endt"] = pd.to_datetime(trips_gdf["startt"]), pd.to_datetime(trips_gdf["endt"])
-    stps_gdf["startt"], stps_gdf["endt"] = pd.to_datetime(stps_gdf["startt"]), pd.to_datetime(stps_gdf["endt"])
-
-    trips_gdf["startt"] = pd.to_datetime(trips_gdf["startt"]).dt.tz_localize(None)
-    trips_gdf["endt"] = pd.to_datetime(trips_gdf["endt"]).dt.tz_localize(None)
-    stps_gdf["startt"] = pd.to_datetime(stps_gdf["startt"]).dt.tz_localize(None)
-    stps_gdf["endt"] = pd.to_datetime(stps_gdf["endt"]).dt.tz_localize(None)
-
-    trips_gdf["dur_s"] = (trips_gdf["endt"] - trips_gdf["startt"]).dt.total_seconds()
-
-    # drop the columns
-    stps_gdf.drop(columns={"activity", "trip_id"}, inplace=True)
-    trips_gdf.drop(
-        columns={
-            "mode_hir",
-            "mode_t1",
-            "mode_tp1",
-            "mode_d1",
-            "mode_dp1",
-            "mode_t2",
-            "mode_tp2",
-            "mode_d2",
-            "mode_dp2",
-        },
-        inplace=True,
-    )
-
-    stps_gdf["type"] = "points"
-    trips_gdf["type"] = "trips"
-    all_ = trips_gdf.append(stps_gdf)
-
-    # core
+def extractActivitySet(all_, time_window):
     tqdm.pandas(desc="Extracting activity set")
-    allSet = applyParallel(all_.groupby("userid"), _extractActivitySetSingle, time_window, filter_len).reset_index(
-        drop=True
-    )
-    # get the statistics for trips: trip count, distance and trip duration for each time step
-    tripStat = applyParallel(all_.groupby("userid"), _getTripStatSingle, time_window, filter_len).reset_index(drop=True)
+    allSet = applyParallel(all_.groupby("userid"), _extractActivitySetSingle, time_window).reset_index(drop=True)
 
-    # clean up
-    aSet = allSet.loc[allSet["type"] == "points"][["userid", "locid", "dur_s", "class", "timeStep"]]
-    aSet.reset_index(drop=True, inplace=True)
-    tSet = allSet.loc[allSet["type"] == "trips"][["userid", "tripid", "length_m", "dur_s", "nloc", "class", "timeStep"]]
-    tSet.reset_index(drop=True, inplace=True)
-
-    # save
-    aSet.to_csv(os.path.join(config["S_act"], f"{time_window}_{filter_len}_aSet.csv"), index=False)
-    tSet.to_csv(os.path.join(config["S_act"], f"{time_window}_{filter_len}_tSet.csv"), index=False)
-    tripStat.to_csv(os.path.join(config["S_act"], f"{time_window}_{filter_len}_stat.csv"), index=False)
+    return allSet
 
 
-def _extractActivitySetSingle(df, time_window, filter_len):
+def _extractActivitySetSingle(df, time_window):
 
     # total weeks and start week
     weeks = (df["endt"].max() - df["startt"].min()).days // 7
@@ -141,12 +85,8 @@ def _extractActivitySetSingle(df, time_window, filter_len):
         ## determine activity set locations
         # get the currect time step points gdf
         curr_stps = df.loc[(df["startt"] >= curr_start) & (df["endt"] < curr_end) & (df["type"] == "points")]
-        # extract the activity set (loaction)
-        curr_ASet = (
-            curr_stps.groupby("locid", as_index=False)
-            .apply(_get_act_locs, time_window=time_window, filter_len=filter_len)
-            .dropna()
-        )
+        # extract the activity set (location)
+        curr_ASet = curr_stps.groupby("locid", as_index=False).apply(_getActLocs, time_window=time_window).dropna()
 
         # if no location, jump to next time step
         if curr_ASet.empty:
@@ -162,7 +102,7 @@ def _extractActivitySetSingle(df, time_window, filter_len):
 
         # get the currect time step trips gdf
         curr_t = df.loc[(df["startt"] >= curr_start) & (df["endt"] < curr_end) & (df["type"] == "trips")]
-        curr_tSet = get_curr_trips(curr_t, curr_stps, curr_ASet)
+        curr_tSet = _getCurrTrips(curr_t, curr_stps, curr_ASet)
 
         # result is the trips that ends at activity set locations
         curr_tSet["timeStep"] = i
@@ -178,44 +118,33 @@ def _extractActivitySetSingle(df, time_window, filter_len):
     return aSet.append(tSet)
 
 
-def _getTripStatSingle(df, time_window, filter_len):
-    # total weeks and start week
-    weeks = (df["endt"].max() - df["startt"].min()).days // 7
-    start_date = df["startt"].min().date()
+if __name__ == "__main__":
+    stps_gdf = pd.read_csv(os.path.join(config["proc"], "stps_act_user_50.csv"))
+    trips_gdf = pd.read_csv(os.path.join(config["proc"], "trips.csv"))
 
-    res_ls = []
-    # construct the sliding week gdf
-    for i in range(0, weeks - time_window + 1):
-        # start and end time
-        curr_start = datetime.datetime.combine(start_date + datetime.timedelta(weeks=i), datetime.time())
-        curr_end = datetime.datetime.combine(curr_start + datetime.timedelta(weeks=time_window), datetime.time())
-        # currect gdf and extract the activity set
-        curr_t = df.loc[(df["startt"] >= curr_start) & (df["endt"] < curr_end) & (df["type"] == "trips")]
+    # time
+    trips_gdf["startt"], trips_gdf["endt"] = pd.to_datetime(trips_gdf["startt"]), pd.to_datetime(trips_gdf["endt"])
+    stps_gdf["startt"], stps_gdf["endt"] = pd.to_datetime(stps_gdf["startt"]), pd.to_datetime(stps_gdf["endt"])
 
-        count = curr_t.shape[0]
-        dis = curr_t["length_m"].sum()
-        dur = curr_t["dur_s"].sum()
-        res_ls.append([count, dis, dur, i])
-    res = pd.DataFrame(res_ls, columns=["count", "dis", "dur", "timeStep"])
-    res["userid"] = df["userid"].unique()[0]
-    return res
+    stps_gdf["type"] = "points"
+    trips_gdf["type"] = "trips"
+    all_ = trips_gdf.append(stps_gdf)
 
-
-def getSet():
-    # MOBIS: 3, 4, 5, 6, 8
-    # SBB: 4, 5, 6, 8, 10, 15, 20, 30, 40
-
-    time_window_ls = [4, 5, 6, 8, 10, 15, 20, 30, 40]
-    # 5, 10, 30
-    filter_len_ls = [10]
+    time_window_ls = [5, 10, 15]
 
     for time_window in time_window_ls:
-        for filter_len in filter_len_ls:
-            _extractActivitySet(time_window, filter_len)
-            print(f"complete time_window{time_window} & filter_len{filter_len}")
+        allSet = extractActivitySet(all_, time_window)
+        print(f"complete time_window {time_window}")
 
+        # clean up
+        aSet = allSet.loc[allSet["type"] == "points"][["userid", "locid", "dur_s", "class", "timeStep"]]
+        aSet.reset_index(drop=True, inplace=True)
+        tSet = allSet.loc[allSet["type"] == "trips"][
+            ["userid", "tripid", "length_m", "dur_s", "nloc", "class", "timeStep"]
+        ]
+        tSet.reset_index(drop=True, inplace=True)
 
-if __name__ == "__main__":
-    # get activity set
-    getSet()
+        # save
+        aSet.to_csv(os.path.join(config["activitySet"], f"{time_window}_aSet.csv"), index=False)
+        tSet.to_csv(os.path.join(config["activitySet"], f"{time_window}_tSet.csv"), index=False)
 

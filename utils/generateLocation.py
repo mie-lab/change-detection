@@ -51,7 +51,11 @@ def generate_Location(epsilon, user):
         columns={"user_id": "userid", "started_at": "startt", "finished_at": "endt", "location_id": "locid"},
         inplace=True,
     )
+
     locs.rename(columns={"user_id": "userid"}, inplace=True)
+
+    stps["startt"] = pd.to_datetime(stps["startt"]).dt.tz_localize(None)
+    stps["endt"] = pd.to_datetime(stps["endt"]).dt.tz_localize(None)
 
     stps.sort_index(inplace=True)
     locs.sort_index(inplace=True)

@@ -1,24 +1,16 @@
 import pandas as pd
 import geopandas as gpd
 import numpy as np
-from pandas.io.parsers import read_csv
 from tqdm import tqdm
 
-# from utils import calculate_distance_matrix
-from collections import OrderedDict
 import pickle
 import multiprocessing
 import os
-import scipy.io as sio
-from sklearn.metrics import pairwise_distances
+
 from scipy.spatial.distance import pdist, squareform
-import glob
-import string
 import itertools
 
-from joblib import Parallel, delayed
-
-from config import config
+from utils.config import config
 
 np.set_printoptions(precision=4)
 np.set_printoptions(suppress=True)
@@ -31,28 +23,10 @@ def _encode(ori_str, mode_dict):
     return "".join(i for i, _ in itertools.groupby(ori_str.replace(",", "")))
 
 
-def _split(ori_str, mode_dict):
-    """replace the ori_str to mode_dict, and split into list"""
-    for mode, value in mode_dict.items():
-        ori_str = ori_str.replace(mode, value)
-    return ori_str.split(",")
-
-
-def _get_unique(ls):
-    """Get unique mode to a dict"""
-    output = set()
-    for x in ls:
-        for sub in x.split(","):
-            output.add(sub)
-
-    mode_dict = {mode: string.ascii_lowercase[i] for i, mode in enumerate(output)}
-    return mode_dict
-
-
-def calculate_distance_matrix(df, return_dict, distance="dtw"):
+def _getModeDist(df, return_dict, distance="jd"):
     """
     distance matrix calculation.
-    distance = ['ed', 'dtw', 'symm', "jd"]
+    distance = ['symm', "jd"]
     """
 
     n = len(df)
@@ -76,14 +50,6 @@ def calculate_distance_matrix(df, return_dict, distance="dtw"):
         ix_2_this = ix_2[i]
         # traj_2 = np.asarray(gdf.iloc[ix_2_this].geometry)
         mode_2 = df.iloc[ix_2_this]["mode"]
-        if distance == "dtw":
-            d.append(fastdtw(traj_1, traj_2, dist=euclidean)[0] / (traj_1.shape[0] * traj_2.shape[0]))
-        if distance == "ed":
-            # consider bidirectional
-            normal_ed = editdistance.eval(mode_1, mode_2) / (len(mode_1) + len(mode_2))
-            inverse_ed = editdistance.eval(mode_1, mode_2[::-1]) / (len(mode_1) + len(mode_2))
-            # choose the smallest distance
-            d.append(np.minimum(normal_ed, inverse_ed))
         if distance == "symm":
             set_1 = set(mode_1)
             set_2 = set(mode_2)
@@ -109,63 +75,26 @@ def calculate_distance_matrix(df, return_dict, distance="dtw"):
     return_dict[df["userid"].unique()[0]] = D
 
 
-def getLengthDist(df):
+def _getLengthDist(df):
     return squareform(pdist(df["length_m"].to_numpy().reshape(-1, 1), metric="euclidean"))
 
 
-def getDurDist(df):
+def _getDurDist(df):
     return squareform(pdist(df["dur_s"].to_numpy().reshape(-1, 1), metric="euclidean"))
 
 
 def _ifOnlyWalk(row):
-    """return True if only one mode is used and this mode is Walk."""
+    """return True if only one walk mode is used."""
     modes = set(row.split(","))
     walkExist = "Mode::Walk" in modes
     length = len(modes) == 1
     return walkExist & length
 
 
-if __name__ == "__main__":
-    time_window = 5
-
-    ## get activity set trips
-    actTrips_df = pd.read_csv(os.path.join(config["S_act"], f"{time_window}_10_tSet.csv"))
-    trips_df = pd.read_csv(
-        os.path.join(config["S_proc"], "trips_forMainMode.csv"),
-        usecols=["id", "length_m", "mode_ls", "userid", "startt", "endt"],
-    )
-
-    # get durations
-    trips_df["startt"], trips_df["endt"] = pd.to_datetime(trips_df["startt"]), pd.to_datetime(trips_df["endt"])
-    trips_df["dur_s"] = (trips_df["endt"] - trips_df["startt"]).dt.total_seconds()
-
-    # remove duplicate entries
-    actTrips = actTrips_df["tripid"].unique()
-    t_df = trips_df.loc[trips_df["id"].isin(actTrips)].copy()
+def similarityMeasurement(t_df, mode_weight=0.5, distance_weight=0.25, duration_weight=0.25):
 
     ## define how to select modes
-    # Case1: every mode, Boat = Bus, no airplane
-    # mode_dict = {
-    #     "Mode::Airplane": "",
-    #     "Mode::Bicycle": "b",
-    #     "Mode::Boat": "d",
-    #     "Mode::Bus": "d",
-    #     "Mode::Car": "e",
-    #     "Mode::Coach": "f",
-    #     "Mode::Ebicycle": "g",
-    #     "Mode::Ecar": "h",
-    #     "Mode::Ski": "",
-    #     "Mode::Train": "i",
-    #     "Mode::Tram": "j",
-    #     "Mode::Walk": "k",
-    # }
-    # t_df["mode"] = [_encode(i, mode_dict) for i in t_df["mode_ls"].to_list()]
-
-    # Case2: combine e-mode and normal mode
-    # mode_dict = {'Mode::Airplane':'a', 'Mode::Bicycle':'b', 'Mode::Boat':'d', 'Mode::Bus':'d', 'Mode::Car':'e', 'Mode::Coach':'f','Mode::Ebicycle':'b','Mode::Ecar':'e','Mode::Ski':'','Mode::Train':'i','Mode::Tram':'j','Mode::Walk':'k'}
-    # t_df['mode'] = [_encode(i, mode_dict) for i in t_df['mode_ls'].to_list()]
-
-    # Case3: Case1 + no walk mode if combined with other mode
+    # every mode, Boat = Bus, no airplane + no walk mode if combined with other mode
     mode_dict = {
         "Mode::Airplane": "",
         "Mode::Bicycle": "b",
@@ -187,23 +116,6 @@ if __name__ == "__main__":
     # other trips ignore walk
     t_df.loc[~ifOnlyWalk, "mode"] = [_encode(i, mode_dict) for i in t_df.loc[~ifOnlyWalk, "mode_ls"].to_list()]
 
-    # Case4: Case2 + no walk mode if combined
-    # mode_dict = {'Mode::Airplane':'a', 'Mode::Bicycle':'b', 'Mode::Boat':'d', 'Mode::Bus':'d', 'Mode::Car':'e', 'Mode::Coach':'f','Mode::Ebicycle':'b','Mode::Ecar':'e','Mode::Ski':'','Mode::Train':'i','Mode::Tram':'j','Mode::Walk':''}
-    # ifOnlyWalk = t_df['mode_ls'].apply(_ifOnlyWalk)
-    # t_df.loc[ifOnlyWalk, 'mode'] = 'k'
-    # t_df.loc[~ifOnlyWalk, 'mode'] = [_encode(i, mode_dict) for i in t_df.loc[~ifOnlyWalk, 'mode_ls'].to_list()]
-
-    ## for performance choose subset
-    # t_df = t_df.groupby('userid').head(100)
-    # t_df = t_df.loc[t_df['userid'].isin(t_df['userid'].unique()[:5])]
-    # print(t_df.head(20))
-
-    ## select only valid users
-    valid_user = pd.read_csv(config["results"] + "\\SBB_user_window_filtered.csv")["user_id"].unique()
-    valid_user = valid_user.astype(int)
-    t_df = t_df.loc[t_df["userid"].isin(valid_user)]
-    print("User number:", t_df["userid"].unique().shape[0])
-
     ## similarity for mode
     manager = multiprocessing.Manager()
     mode_dict = manager.dict()
@@ -211,7 +123,7 @@ if __name__ == "__main__":
 
     for user in t_df["userid"].unique():
         user_df = t_df.loc[t_df["userid"] == user]
-        p = multiprocessing.Process(target=calculate_distance_matrix, args=(user_df, mode_dict, "jd"))
+        p = multiprocessing.Process(target=_getModeDist, args=(user_df, mode_dict, "jd"))
         jobs.append(p)
         p.start()
     for proc in jobs:
@@ -219,10 +131,10 @@ if __name__ == "__main__":
     print("Mode distance number:", len(mode_dict))
 
     ## similarity for length
-    len_dict = t_df.groupby("userid").apply(getLengthDist).to_dict()
+    len_dict = t_df.groupby("userid").apply(_getLengthDist).to_dict()
 
     ## similarity for duration
-    dur_dict = t_df.groupby("userid").apply(getDurDist).to_dict()
+    dur_dict = t_df.groupby("userid").apply(_getDurDist).to_dict()
 
     ## combined similarity
     all_dict = {}
@@ -242,16 +154,41 @@ if __name__ == "__main__":
         v = (v - v.min()) / (v.max() - v.min())
         all_dict[k]["mode"] = v
 
-        # total distance
-        # TODO: do we need to consider the weight of each component?
-
         # weight 2:1:1
-        all_dict[k]["all"] = all_dict[k]["mode"] * 0.5 + all_dict[k]["len"] * 0.25 + all_dict[k]["dur"] * 0.25
+        all_dict[k]["all"] = (
+            all_dict[k]["mode"] * mode_weight
+            + all_dict[k]["len"] * distance_weight
+            + all_dict[k]["dur"] * duration_weight
+        )
 
-        # equal weight
-        # all_dict[k]["all"] = all_dict[k]["mode"] + all_dict[k]["len"] + all_dict[k]["dur"]
+    return all_dict
+
+
+if __name__ == "__main__":
+    time_window = 5
+    actTrips_df = pd.read_csv(os.path.join(config["activitySet"], f"{time_window}_tSet.csv"))
+    trips_df = pd.read_csv(
+        os.path.join(config["proc"], "trips.csv"),
+        usecols=["id", "length_m", "mode_ls", "userid", "startt", "endt", "dur_s"],
+    )
+    # time
+    trips_df["startt"], trips_df["endt"] = pd.to_datetime(trips_df["startt"]), pd.to_datetime(trips_df["endt"])
+
+    # remove duplicate entries
+    actTrips = actTrips_df["tripid"].unique()
+    # t_df is the trip dataframe for similarity measures
+    t_df = trips_df.loc[trips_df["id"].isin(actTrips)].copy()
+
+    ## select only valid users
+    valid_user = pd.read_csv(config["quality"] + "\\SBB_user_window_filtered.csv")["user_id"].unique()
+    valid_user = valid_user.astype(int)
+    t_df = t_df.loc[t_df["userid"].isin(valid_user)]
+    print("User number:", t_df["userid"].unique().shape[0])
+
+    # Core
+    all_dict = similarityMeasurement(t_df)
 
     # save the combined distance matrix
-    with open(config["S_similarity"] + f"/case3_distance_{time_window}.pkl", "wb") as f:
+    with open(config["similarity"] + f"/similarity.pkl", "wb") as f:
         pickle.dump(all_dict, f, pickle.HIGHEST_PROTOCOL)
 
