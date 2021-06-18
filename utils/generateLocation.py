@@ -3,9 +3,10 @@ import datetime
 import geopandas as gpd
 import os, sys
 from tqdm import tqdm
+from shapely import wkt
 
 
-from utils.config import config
+from config import config
 
 
 sys.path.append(os.path.join(os.getcwd(), "trackintel"))
@@ -21,7 +22,7 @@ def generate_Location(epsilon, user):
 
     # end period cut
     end_period = datetime.datetime(2017, 12, 25)
-    df = df.loc[df["endt"] < end_period]
+    df = df.loc[df["finished_at"] < end_period]
 
     df["started_at"] = df["started_at"].dt.tz_localize(tz="utc")
     df["finished_at"] = df["finished_at"].dt.tz_localize(tz="utc")
