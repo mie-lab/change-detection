@@ -333,9 +333,7 @@ for user in tqdm(users):
         top5 = df["cluster"].value_counts().head(5).index
         df = df.loc[df["cluster"].isin(top5)]
 
-    # end period cut
-    end_period = datetime.datetime(2017, 12, 25)
-    df = df.loc[df["endt"] < end_period]
+
 
     # sliding window change detection
     change_points = _sliding_window(df, threshold=0.30)
