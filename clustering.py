@@ -10,13 +10,14 @@ matplotlib.rcParams["figure.dpi"] = 300
 matplotlib.rcParams["xtick.labelsize"] = 13
 matplotlib.rcParams["ytick.labelsize"] = 13
 
-from utils.config import config
-
 import scipy
 
 from scipy.cluster.hierarchy import fcluster, dendrogram, linkage
 from sklearn_extra.cluster import KMedoids
 from sklearn.metrics import silhouette_score
+
+from utils.config import config
+from similarityMeasures import getValidTrips
 
 np.set_printoptions(precision=4)
 np.set_printoptions(suppress=True)
@@ -132,7 +133,7 @@ def _index(mat, c_index):
     return WB, CH
 
 
-# __hierarchy clustering algorithm
+# Hierarchical clustering algorithm
 def __hierarchy(data, t_df, curr_path, bound, idx):
 
     # the distance criteria
@@ -203,33 +204,13 @@ def cluster(dist, t_df, curr_path):
     # __save_results(cluster_df, r_dict, curr_path, bound, feature_set)
 
     ##########
-    # Hierarchy clustering
+    # Hierarchical clustering
     feature_set = "H"
     __hierarchy(dist, t_df.copy(), curr_path, bound, feature_set)
 
 
 if __name__ == "__main__":
-    time_window = 5
-
-    ## get activity set trips
-    actTrips_df = pd.read_csv(os.path.join(config["activitySet"], f"{time_window}_tSet.csv"))
-    trips_df = pd.read_csv(
-        os.path.join(config["proc"], "trips.csv"),
-        usecols=["id", "length_m", "mode_ls", "userid", "startt", "endt", "dur_s"],
-    )
-    # time
-    trips_df["startt"], trips_df["endt"] = pd.to_datetime(trips_df["startt"]), pd.to_datetime(trips_df["endt"])
-
-    # remove duplicate entries
-    actTrips = actTrips_df["tripid"].unique()
-    # t_df is the trip dataframe for similarity measures
-    t_df = trips_df.loc[trips_df["id"].isin(actTrips)].copy()
-
-    ## select only valid users
-    valid_user = pd.read_csv(config["quality"] + "\\SBB_user_window_filtered.csv")["user_id"].unique()
-    valid_user = valid_user.astype(int)
-    t_df = t_df.loc[t_df["userid"].isin(valid_user)]
-    print(t_df["userid"].unique().shape[0])
+    t_df = getValidTrips(time_window=5)
 
     ## open distance matrix
     with open(config["similarity"] + f"/similarity.pkl", "rb") as f:
@@ -246,7 +227,7 @@ if __name__ == "__main__":
         ut_df = t_df.loc[t_df["userid"] == user]
 
         # create the user folder
-        curr_path = config["cluster"] + "//" + str(user)
+        curr_path = config["cluster"] + f"\\{user}"
         if not os.path.exists(curr_path):
             os.makedirs(curr_path)
 

@@ -1,12 +1,3 @@
-# TODO: what is a change in mobility behaviour?
-"""
-Ideas:
-1. use KL divergence and compare std with mean. But hard to tell "when"
-2. use a definite threshold. e.g., any proportion change >20%.
-3. see other time series analysis
-
-
-"""
 import pandas as pd
 import numpy as np
 import geopandas as gpd
@@ -14,9 +5,7 @@ from tqdm import tqdm
 import os
 import glob
 import datetime
-import pickle
 
-from config import config
 
 from matplotlib import pyplot as plt
 import matplotlib
@@ -24,6 +13,10 @@ import matplotlib
 matplotlib.rcParams["figure.dpi"] = 300
 matplotlib.rcParams["xtick.labelsize"] = 13
 matplotlib.rcParams["ytick.labelsize"] = 13
+
+from utils.config import config
+from similarityMeasures import getValidTrips
+from clusterAnalysis import getHierarchicalResult
 
 
 def HHI_index(df):
@@ -280,47 +273,14 @@ def _draw_relative_with_change(df, change_points):
 # define which case to consider
 case = "case3"
 
-## get activity set trips: t_df
-actTrips_df = pd.read_csv(os.path.join(config["S_act"], "5_10_tSet.csv"))
-trips_df = pd.read_csv(
-    os.path.join(config["S_proc"], "trips_forMainMode.csv"),
-    usecols=["id", "length_m", "mode_ls", "userid", "startt", "endt"],
-)
-# remove duplicate entries
-actTrips = actTrips_df["tripid"].unique()
-t_df = trips_df.loc[trips_df["id"].isin(actTrips)].copy()
-
-## select only valid users
-valid_user = pd.read_csv(config["results"] + "\\SBB_user_window_filtered.csv")["user_id"].unique()
-valid_user = valid_user.astype(int)
-t_df = t_df.loc[t_df["userid"].isin(valid_user)]
-
-## home location change result
-# with open("./home_change.pkl", "rb") as f:
-#     dist_mat = pickle.load(f)
+t_df = getValidTrips(time_window=5)
 
 res = []
 
-# users = [1659]
 users = t_df["userid"].unique()
-# for user, home_change_points in dist_mat.items():
 for user in tqdm(users):
-    # print(user)
-    # print(home_change_points)
 
-    curr_path = config["S_cluster"] + f"\\{case}_cluster_5\\" + str(user)
-
-    # get the result of hierarchy clustering
-    filename = glob.glob(curr_path + "\\H_N[0-9]*.csv")[0]
-    best_num = int(filename.split("\\")[-1].split("_")[-1].split(".")[0][1:])
-    df = pd.read_csv(filename)
-    df = df[["id", "length_m", "mode_ls", "userid", "startt", "endt", f"hc_{best_num}"]]
-    df.rename(columns={f"hc_{best_num}": "cluster"}, inplace=True)
-    df["cluster"] = df["cluster"].astype("int")
-
-    # time
-    df["startt"] = pd.to_datetime(df["startt"])
-    df["endt"] = pd.to_datetime(df["endt"])
+    df, bestClusterNum = getHierarchicalResult(user)
 
     # create the analysis folder
     curr_path = config["S_fig"] + f"\\{case}_5\\" + str(user)
@@ -332,8 +292,6 @@ for user in tqdm(users):
     if len(df["cluster"].unique()) > 5:
         top5 = df["cluster"].value_counts().head(5).index
         df = df.loc[df["cluster"].isin(top5)]
-
-
 
     # sliding window change detection
     change_points = _sliding_window(df, threshold=0.30)

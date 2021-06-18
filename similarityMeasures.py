@@ -164,8 +164,7 @@ def similarityMeasurement(t_df, mode_weight=0.5, distance_weight=0.25, duration_
     return all_dict
 
 
-if __name__ == "__main__":
-    time_window = 5
+def getValidTrips(time_window):
     actTrips_df = pd.read_csv(os.path.join(config["activitySet"], f"{time_window}_tSet.csv"))
     trips_df = pd.read_csv(
         os.path.join(config["proc"], "trips.csv"),
@@ -184,6 +183,12 @@ if __name__ == "__main__":
     valid_user = valid_user.astype(int)
     t_df = t_df.loc[t_df["userid"].isin(valid_user)]
     print("User number:", t_df["userid"].unique().shape[0])
+
+    return t_df
+
+
+if __name__ == "__main__":
+    t_df = getValidTrips(time_window=5)
 
     # Core
     all_dict = similarityMeasurement(t_df)
