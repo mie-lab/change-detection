@@ -1,5 +1,4 @@
 import pandas as pd
-import geopandas as gpd
 import numpy as np
 from tqdm import tqdm
 
@@ -15,120 +14,50 @@ from utils.config import config
 np.set_printoptions(precision=4)
 np.set_printoptions(suppress=True)
 
-# replace and change into a single string
-def _encode(ori_str, mode_dict):
-    for mode, value in mode_dict.items():
-        ori_str = ori_str.replace(mode, value)
-    # join adjacent same mode
-    return "".join(i for i, _ in itertools.groupby(ori_str.replace(",", "")))
-
-
-def _getModeDist(df, return_dict, distance="jd"):
-    """
-    distance matrix calculation.
-    distance = ['symm', "jd"]
-    """
-
-    n = len(df)
-
-    # for efficiency, calculate only upper triangle matrix
-
-    ix_1, ix_2 = np.triu_indices(n, k=1)
-    trilix = np.tril_indices(n, k=-1)
-
-    # initialize
-    d = []
-    D = np.zeros((n, n))
-
-    ix_1_this = -1
-    for i in tqdm(range(len(ix_1))):
-        if ix_1[i] != ix_1_this:
-            ix_1_this = ix_1[i]
-            # traj_1 = np.asarray(gdf.iloc[ix_1_this].geometry)
-            mode_1 = df.iloc[ix_1_this]["mode"]
-
-        ix_2_this = ix_2[i]
-        # traj_2 = np.asarray(gdf.iloc[ix_2_this].geometry)
-        mode_2 = df.iloc[ix_2_this]["mode"]
-        if distance == "symm":
-            set_1 = set(mode_1)
-            set_2 = set(mode_2)
-            if len(set_1) + len(set_2) == 0:
-                d.append(0)
-            else:
-                d.append(len(set_1.symmetric_difference(set_2)) / (len(set_1) + len(set_2)))
-        if distance == "jd":
-            set_1 = set(mode_1)
-            set_2 = set(mode_2)
-            if len(set_1) + len(set_2) == 0:
-                d.append(0)
-            else:
-                dist = 1 - len(set_1.intersection(set_2)) / len(set_1.union(set_2))
-                d.append(dist)
-
-    d = np.asarray(d)
-    D[(ix_1, ix_2)] = d
-
-    # mirror triangle matrix to be conform with scikit-learn format
-    D[trilix] = D.T[trilix]
-
-    return_dict[df["userid"].unique()[0]] = D
-
-
-def _getLengthDist(df):
-    return squareform(pdist(df["length_m"].to_numpy().reshape(-1, 1), metric="euclidean"))
-
-
-def _getDurDist(df):
-    return squareform(pdist(df["dur_s"].to_numpy().reshape(-1, 1), metric="euclidean"))
-
-
-def _ifOnlyWalk(row):
-    """return True if only one walk mode is used."""
-    modes = set(row.split(","))
-    walkExist = "Mode::Walk" in modes
-    length = len(modes) == 1
-    return walkExist & length
+## define how to select modes
+# every mode, Boat = Bus, no airplane + no walk mode if combined with other mode
+mode_dict = {
+    "Mode::Airplane": "",
+    "Mode::Bicycle": "b",
+    "Mode::Boat": "d",
+    "Mode::Bus": "d",
+    "Mode::Car": "e",
+    "Mode::Coach": "f",
+    "Mode::Ebicycle": "g",
+    "Mode::Ecar": "h",
+    "Mode::Ski": "",
+    "Mode::Train": "i",
+    "Mode::Tram": "j",
+    "Mode::Walk": "",
+}
 
 
 def similarityMeasurement(t_df, mode_weight=0.5, distance_weight=0.25, duration_weight=0.25):
-
-    ## define how to select modes
-    # every mode, Boat = Bus, no airplane + no walk mode if combined with other mode
-    mode_dict = {
-        "Mode::Airplane": "",
-        "Mode::Bicycle": "b",
-        "Mode::Boat": "d",
-        "Mode::Bus": "d",
-        "Mode::Car": "e",
-        "Mode::Coach": "f",
-        "Mode::Ebicycle": "g",
-        "Mode::Ecar": "h",
-        "Mode::Ski": "",
-        "Mode::Train": "i",
-        "Mode::Tram": "j",
-        "Mode::Walk": "",
-    }
+    """
+    Pair-wise similarity measurement for trips traveled by each individual.
+    
+    Including mode, trip distance and trip duration similarity calculation.
+    """
 
     ifOnlyWalk = t_df["mode_ls"].apply(_ifOnlyWalk)
     # only walk is assigned k
     t_df.loc[ifOnlyWalk, "mode"] = "k"
     # other trips ignore walk
-    t_df.loc[~ifOnlyWalk, "mode"] = [_encode(i, mode_dict) for i in t_df.loc[~ifOnlyWalk, "mode_ls"].to_list()]
+    t_df.loc[~ifOnlyWalk, "mode"] = [_encodeMode(i, mode_dict) for i in t_df.loc[~ifOnlyWalk, "mode_ls"].to_list()]
 
     ## similarity for mode
     manager = multiprocessing.Manager()
-    mode_dict = manager.dict()
+    modeDistance_dict = manager.dict()
     jobs = []
 
     for user in t_df["userid"].unique():
         user_df = t_df.loc[t_df["userid"] == user]
-        p = multiprocessing.Process(target=_getModeDist, args=(user_df, mode_dict, "jd"))
+        p = multiprocessing.Process(target=_getModeDist, args=(user_df, modeDistance_dict, "jd"))
         jobs.append(p)
         p.start()
     for proc in jobs:
         proc.join()
-    print("Mode distance number:", len(mode_dict))
+    print("Mode distance number:", len(modeDistance_dict))
 
     ## similarity for length
     len_dict = t_df.groupby("userid").apply(_getLengthDist).to_dict()
@@ -139,7 +68,7 @@ def similarityMeasurement(t_df, mode_weight=0.5, distance_weight=0.25, duration_
     ## combined similarity
     all_dict = {}
     # k is the user, v the mode pairwise distance matrix
-    for k, v in mode_dict.items():
+    for k, v in modeDistance_dict.items():
         all_dict[k] = {}
 
         # min-max for length
@@ -154,7 +83,7 @@ def similarityMeasurement(t_df, mode_weight=0.5, distance_weight=0.25, duration_
         v = (v - v.min()) / (v.max() - v.min())
         all_dict[k]["mode"] = v
 
-        # weight 2:1:1
+        # combined similarity matrix with weights
         all_dict[k]["all"] = (
             all_dict[k]["mode"] * mode_weight
             + all_dict[k]["len"] * distance_weight
@@ -165,6 +94,7 @@ def similarityMeasurement(t_df, mode_weight=0.5, distance_weight=0.25, duration_
 
 
 def getValidTrips(time_window):
+    """Get valid trips that have occured at least once in the trip set"""
     actTrips_df = pd.read_csv(os.path.join(config["activitySet"], f"{time_window}_tSet.csv"))
     trips_df = pd.read_csv(
         os.path.join(config["proc"], "trips.csv"),
@@ -187,11 +117,90 @@ def getValidTrips(time_window):
     return t_df
 
 
+# replace and change into a single string
+def _encodeMode(ori_str, mode_dict):
+    """Replace the ori_str to corresponding mode in mode_dict"""
+    for mode, value in mode_dict.items():
+        ori_str = ori_str.replace(mode, value)
+    # join adjacent same mode
+    return "".join(i for i, _ in itertools.groupby(ori_str.replace(",", "")))
+
+
+def _getModeDist(df, return_dict, distance="jd"):
+    """Distance matrix calculation for mode. Distance could be ['symm', "jd"]."""
+
+    n = len(df)
+
+    # for efficiency, calculate only upper triangle matrix
+    ix_1, ix_2 = np.triu_indices(n, k=1)
+    trilix = np.tril_indices(n, k=-1)
+
+    # initialize
+    d = []
+    D = np.zeros((n, n))
+
+    ix_1_this = -1
+    for i in tqdm(range(len(ix_1))):
+        if ix_1[i] != ix_1_this:
+            ix_1_this = ix_1[i]
+            mode_1 = df.iloc[ix_1_this]["mode"]
+
+        ix_2_this = ix_2[i]
+        mode_2 = df.iloc[ix_2_this]["mode"]
+        if distance == "symm":
+            set_1 = set(mode_1)
+            set_2 = set(mode_2)
+            if len(set_1) + len(set_2) == 0:
+                d.append(0)
+            else:
+                d.append(len(set_1.symmetric_difference(set_2)) / (len(set_1) + len(set_2)))
+        if distance == "jd":
+            set_1 = set(mode_1)
+            set_2 = set(mode_2)
+            if len(set_1) + len(set_2) == 0:
+                d.append(0)
+            else:
+                dist = 1 - len(set_1.intersection(set_2)) / len(set_1.union(set_2))
+                d.append(dist)
+
+    d = np.asarray(d)
+    D[(ix_1, ix_2)] = d
+
+    # mirror triangle matrix
+    D[trilix] = D.T[trilix]
+
+    # save in the return_dict
+    return_dict[df["userid"].unique()[0]] = D
+
+
+def _getLengthDist(df):
+    """Distance matrix calculation for length."""
+    return squareform(pdist(df["length_m"].to_numpy().reshape(-1, 1), metric="euclidean"))
+
+
+def _getDurDist(df):
+    """Distance matrix calculation for duration."""
+    return squareform(pdist(df["dur_s"].to_numpy().reshape(-1, 1), metric="euclidean"))
+
+
+def _ifOnlyWalk(row):
+    """Helper funtion to return True if row only contains Walk mode."""
+    modes = set(row.split(","))
+    walkExist = "Mode::Walk" in modes
+    length = len(modes) == 1
+    return walkExist & length
+
+
 if __name__ == "__main__":
+    mode_weight = 0.5
+    distance_weight = 0.25
+    duration_weight = 0.25
+
     t_df = getValidTrips(time_window=5)
 
-    # Core
-    all_dict = similarityMeasurement(t_df)
+    all_dict = similarityMeasurement(
+        t_df, mode_weight=mode_weight, distance_weight=distance_weight, duration_weight=duration_weight
+    )
 
     # save the combined distance matrix
     with open(config["similarity"] + f"/similarity.pkl", "wb") as f:

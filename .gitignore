@@ -1,5 +1,4 @@
 # repo
-trackintel/*
 
 # env folder
 .ipynb_checkpoints/
@@ -9,3 +8,4 @@ __pycache__/
 # config and data file
 config.py
 *.pkl
+geolife/*

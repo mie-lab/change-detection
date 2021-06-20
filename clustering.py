@@ -194,6 +194,7 @@ def __hierarchy(data, t_df, curr_path, bound, idx):
 
 
 def cluster(dist, t_df, curr_path):
+    """Clustering of trips based on the measured similarity."""
 
     # >20 might not be interesting for the study
     bound = [3, 21]

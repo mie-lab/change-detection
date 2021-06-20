@@ -1,19 +1,27 @@
 # Travel behaviour change detection study
 
-# Structure
-- 00_preProSBB.py: load data and preprocessing
-- 02_activitySet.py: generate activity set and important trip set
-- 03_similarity.py: similarity measurement 
-- 04_cluster.py: clustering 
-- 05_analysis.py: clustering result analysis and plot
-- 06_change.py: change detection algorithms and result plot
-- And jupyter notebook helper script:
-    - basic_stat.ipynb: get preprocessed data size, get intermodal trip number, and top1 location change detection (proxy for home change)
-    - intermodal_trip.ipynb: extract intermodal trips and visualize
-    - select_quality_stability.ipynb: select users based on tracking coverage, and prove of stability for (activity set and) important trip set.
-    - figure\data_figure.py: preprocessing for generating the tripleg data figure.
+## Code Structure
+The main entrance for SBB and Geolife datasets:
+- main_SBB: the whole pipeline for the SBB dataset.
+- main_Geolife: the whole pipeline for the Geolife dataset.
 
-# User selection
+Files containing the different steps of the pipeline:
+- getActivitySet.py: generate activity set and important trip set
+- similarityMeasures.py: similarity measurement 
+- clustering.py: clustering 
+- clusterVisualization.py: clustering result analysis and plot
+- changeDetection.py: change detection algorithms and result plot
+- jupyter notebook scripts:
+    - stat.ipynb: get preprocessed data size, prove of stability for important trip set, and top1 location change detection (proxy for home change)
+    - tracking_quality.ipynb: select users based on tracking coverage.
+- And helper script in .utils/ folder:
+    - config.py: define data paths for intermediate results.
+    - data_figure.py: helper function to generate data for Figure 2.
+    - generateLocation.py: location generation from stay points.
+    - preProSBB.py: data loading and preprocessing for the SBB dataset.
+    - preProGeolife.py: data loading and preprocessing for the Geolife dataset.
+
+## User selection for SBB
 Users are pre-filtered based on overall and sliding window tracking quality
 - user tracked > 300 days.
 - for each time window of 10 weeks, user tracking quality > 0.6.
@@ -27,3 +35,11 @@ Users who changed their top1 location during the study (a proxy for home locatio
 - 1 time: user 1651, 1624, 1608
 - 2 times: user 1650 (probably holiday house), 1620 (intercontinental travel, probably business reasons)
 - Multiple times (probably multiple homes/holiday house): user 1631, 1630
+
+## Requirements and dependencies
+* Numpy
+* GeoPandas
+* Matplotlib 
+* trackintel
+* tqdm
+* OSMnx

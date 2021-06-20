@@ -1,6 +1,4 @@
 import pandas as pd
-import geopandas as gpd
-import numpy as np
 from tqdm import tqdm
 import datetime
 import os
@@ -8,6 +6,29 @@ import multiprocessing
 from joblib import Parallel, delayed
 
 from utils.config import config
+
+
+def getSets(stps_gdf, trips_gdf, time_window_ls):
+    """Get activity and trip sets for different time_window_ls."""
+    stps_gdf["type"] = "points"
+    trips_gdf["type"] = "trips"
+    all_ = trips_gdf.append(stps_gdf)
+
+    for time_window in time_window_ls:
+        allSet = extractSetsSingle(all_, time_window)
+        print(f"complete time_window {time_window}")
+
+        # clean up
+        aSet = allSet.loc[allSet["type"] == "points"][["userid", "locid", "dur_s", "class", "timeStep"]]
+        aSet.reset_index(drop=True, inplace=True)
+        tSet = allSet.loc[allSet["type"] == "trips"][
+            ["userid", "tripid", "length_m", "dur_s", "nloc", "class", "timeStep"]
+        ]
+        tSet.reset_index(drop=True, inplace=True)
+
+        # save
+        aSet.to_csv(os.path.join(config["activitySet"], f"{time_window}_aSet.csv"), index=False)
+        tSet.to_csv(os.path.join(config["activitySet"], f"{time_window}_tSet.csv"), index=False)
 
 
 def _getActLocs(df, time_window=20, filter_len=10):
@@ -34,6 +55,7 @@ def _getActLocs(df, time_window=20, filter_len=10):
 
 
 def _getCurrTrips(t, stps, ASet):
+    """Get the current trips that has travelled to an activity set location."""
     # get the locations in activity set
     valid_stps = stps.loc[stps["locid"].isin(ASet["locid"].unique())]
 
@@ -53,22 +75,22 @@ def _getCurrTrips(t, stps, ASet):
 
 
 def applyParallel(dfGrouped, func, time_window):
+    """Parallel version of the groupby function"""
     # multiprocessing.cpu_count()
-    retLst = Parallel(n_jobs=multiprocessing.cpu_count())(
-        delayed(func)(group, time_window) for _, group in tqdm(dfGrouped)
-    )
+    retLst = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(func)(group, time_window) for _, group in dfGrouped)
     return pd.concat(retLst)
 
 
-# get activity set for each user
-def extractActivitySet(all_, time_window):
+def extractSetsSingle(all_, time_window):
+    """Get activity set for a given time_window"""
     tqdm.pandas(desc="Extracting activity set")
-    allSet = applyParallel(all_.groupby("userid"), _extractActivitySetSingle, time_window).reset_index(drop=True)
+    allSet = applyParallel(all_.groupby("userid"), _extractSetsSingleUser, time_window).reset_index(drop=True)
 
     return allSet
 
 
-def _extractActivitySetSingle(df, time_window):
+def _extractSetsSingleUser(df, time_window):
+    """Get activity set and trip set for each individual."""
 
     # total weeks and start week
     weeks = (df["endt"].max() - df["startt"].min()).days // 7
@@ -126,25 +148,5 @@ if __name__ == "__main__":
     trips_gdf["startt"], trips_gdf["endt"] = pd.to_datetime(trips_gdf["startt"]), pd.to_datetime(trips_gdf["endt"])
     stps_gdf["startt"], stps_gdf["endt"] = pd.to_datetime(stps_gdf["startt"]), pd.to_datetime(stps_gdf["endt"])
 
-    stps_gdf["type"] = "points"
-    trips_gdf["type"] = "trips"
-    all_ = trips_gdf.append(stps_gdf)
-
     time_window_ls = [5, 10, 15]
-
-    for time_window in time_window_ls:
-        allSet = extractActivitySet(all_, time_window)
-        print(f"complete time_window {time_window}")
-
-        # clean up
-        aSet = allSet.loc[allSet["type"] == "points"][["userid", "locid", "dur_s", "class", "timeStep"]]
-        aSet.reset_index(drop=True, inplace=True)
-        tSet = allSet.loc[allSet["type"] == "trips"][
-            ["userid", "tripid", "length_m", "dur_s", "nloc", "class", "timeStep"]
-        ]
-        tSet.reset_index(drop=True, inplace=True)
-
-        # save
-        aSet.to_csv(os.path.join(config["activitySet"], f"{time_window}_aSet.csv"), index=False)
-        tSet.to_csv(os.path.join(config["activitySet"], f"{time_window}_tSet.csv"), index=False)
-
+    getSets(stps_gdf, trips_gdf, time_window_ls)
