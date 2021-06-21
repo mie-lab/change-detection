@@ -70,9 +70,12 @@ def _HHIDetection(df, window_size=5, lag=5, threshold=3, influence=1):
         # current trip
         c_df = df.loc[(df["startt"] >= curr_start) & (df["endt"] < curr_end)]
 
+        # get HHI at each time step
         HHI_ls.append(__getHHI(c_df))
 
+    # apply __thresholdingAlgo to the HHI time series
     peaks = __thresholdingAlgo(HHI_ls, lag=lag, threshold=threshold, influence=influence)
+
     idx = pd.date_range(
         start=start_date + datetime.timedelta(weeks=window_size), periods=weeks - window_size + 1, freq="W"
     )
@@ -124,15 +127,15 @@ def _slidingWindowDetection(df, window_size, threshold):
     start_date = df["startt"].min().date()
 
     dist_ls = []
-    # construct the sliding week gdf, to get the dist_ls (distribution for each timestep)
+    # construct the sliding week gdf
     for i in range(0, weeks - window_size + 1):
         curr_start = datetime.datetime.combine(start_date + datetime.timedelta(weeks=i), datetime.time())
         curr_end = datetime.datetime.combine(curr_start + datetime.timedelta(weeks=window_size), datetime.time())
 
         # current trip
         c_df = df.loc[(df["startt"] >= curr_start) & (df["endt"] < curr_end)]
-        # print(c_df)
 
+        # get the count distribution of each cluster
         cluster_num = c_df.groupby("cluster").size().to_frame("Size")
         distribution = cluster_num / cluster_num.sum()
         dist_ls.append(distribution)
@@ -141,47 +144,52 @@ def _slidingWindowDetection(df, window_size, threshold):
 
     # start to ensure no overlapping change time
     start = 0
+
     curr_max = 0
     hold_start = -1
     hold_change = -1
     find_subset = False
     for i, curr_dist in enumerate(dist_ls):
-
-        if not find_subset:
-            # find the starting j
+        if not find_subset:  # find the starting j
             curr_max = 0
             change_pre = 0
+            # iteratively go one time step forward
             for j in range(i - 1, start - 1, -1):
+                # get the distribution change of each class
                 combined = curr_dist.join(dist_ls[j], lsuffix="l", rsuffix="r")
                 change = np.abs(combined["Sizel"] - combined["Sizer"])
 
+                # if the largest distribution change is smaller than the previous timestep
                 # add small term to allow pertubation
                 if change.max() + 0.05 < change_pre:
                     break
                 change_pre = change.max()
+
+                # largest distribution change should be larger than our defined threshold
                 if change.max() > threshold:
+                    # largest distribution change should be larger than curr_max
                     if change.max() > curr_max:
                         hold_start = j
                         curr_max = change.max()
                         hold_change = change.max()
                         find_subset = True
-                    else:
+                    else:  # if change drops, we immediately find the start point as hold_start
                         break
 
                 # cut stable periods and ensure no super long change periods
                 if (change < 0.05).all() and (i - j) > 15:
                     start = j - 1
                     break
-        else:
-            # find the ending i
+        else:  # we have now found the start j, now we find the ending i
             combined = curr_dist.join(dist_ls[hold_start], lsuffix="l", rsuffix="r")
             change = np.abs(combined["Sizel"] - combined["Sizer"])
-            # print(change.max())
+            # we try to find changes larger than hold_change
             if change.max() > hold_change:
                 hold_change = change.max()
                 if i < len(dist_ls) - 1:
                     continue
 
+            # we now get the change period [hold_start, end]
             if i == len(dist_ls) - 1:
                 end = i
             else:
