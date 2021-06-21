@@ -93,7 +93,7 @@ def similarityMeasurement(t_df, mode_weight=0.5, distance_weight=0.25, duration_
     return all_dict
 
 
-def getValidTrips(time_window):
+def getValidTrips(time_window, SBB=True):
     """Get valid trips that have occured at least once in the trip set"""
     actTrips_df = pd.read_csv(os.path.join(config["activitySet"], f"{time_window}_tSet.csv"))
     trips_df = pd.read_csv(
@@ -108,9 +108,15 @@ def getValidTrips(time_window):
     # t_df is the trip dataframe for similarity measures
     t_df = trips_df.loc[trips_df["id"].isin(actTrips)].copy()
 
-    ## select only valid users
-    valid_user = pd.read_csv(config["quality"] + "\\SBB_user_window_filtered.csv")["user_id"].unique()
-    valid_user = valid_user.astype(int)
+    if SBB:
+        ## select only valid users
+        valid_user = pd.read_csv(config["quality"] + "\\SBB_user_window_filtered.csv")["user_id"].unique()
+        valid_user = valid_user.astype(int)
+    else:
+        # select only users with more than 100 trips
+        trip_count = t_df.groupby("userid").size()
+        valid_user = trip_count[trip_count > 100].index
+        valid_user = valid_user.astype(int)
     t_df = t_df.loc[t_df["userid"].isin(valid_user)]
     print("User number:", t_df["userid"].unique().shape[0])
 

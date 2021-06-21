@@ -27,6 +27,8 @@ def getSets(stps_gdf, trips_gdf, time_window_ls):
         tSet.reset_index(drop=True, inplace=True)
 
         # save
+        if not os.path.exists(config["activitySet"]):
+            os.makedirs(config["activitySet"])
         aSet.to_csv(os.path.join(config["activitySet"], f"{time_window}_aSet.csv"), index=False)
         tSet.to_csv(os.path.join(config["activitySet"], f"{time_window}_tSet.csv"), index=False)
 
@@ -142,7 +144,7 @@ def _extractSetsSingleUser(df, time_window):
 
 if __name__ == "__main__":
     stps_gdf = pd.read_csv(os.path.join(config["proc"], "stps_act_user_50.csv"))
-    trips_gdf = pd.read_csv(os.path.join(config["proc"], "trips.csv"))
+    trips_gdf = pd.read_csv(os.path.join(config["proc"], "trips_Geolife.csv"))
 
     # time
     trips_gdf["startt"], trips_gdf["endt"] = pd.to_datetime(trips_gdf["startt"]), pd.to_datetime(trips_gdf["endt"])

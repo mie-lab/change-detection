@@ -1,11 +1,11 @@
 # repo
+trackintel/*
 
 # env folder
 .ipynb_checkpoints/
 .vscode/
 __pycache__/
 
-# config and data file
-config.py
+# data files
 *.pkl
 geolife/*
