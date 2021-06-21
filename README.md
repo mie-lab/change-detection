@@ -5,6 +5,8 @@ This repository represents the implementation of the paper:
 [Ye Hong](https://www.researchgate.net/profile/Ye-Hong-4), [Yanan Xin](https://baug.ethz.ch/en/department/people/staff/personen-detail.Mjc4MjA5.TGlzdC82NzksLTU1NTc1NDEwMQ==.html), [Henry Martin](https://n.ethz.ch/~martinhe/), [Dominik Bucher](https://scholar.google.ch/citations?user=15XEBsQAAAAJ&hl=de), [Martin Raubal](https://raubal.ethz.ch/)\
 [IKG, ETH Zurich](https://gis.ethz.ch/en/)
 
+![cluster_dome](figures/3_cluster/cluster_demo.png?raw=true)
+
 ## Reproduce the framework on the Geolife dataset
 While the results in the paper are obtained from SBB Green Class dataset that is not publicly available, we provide a runnable example of the pipeline on the Geolife dataset. The steps to run the pipeline are as follows:
 - Download the repo, install neccessary `Requirements and dependencies`.

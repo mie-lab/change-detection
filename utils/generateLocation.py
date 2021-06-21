@@ -54,18 +54,18 @@ def generate_Location(df, epsilon, user):
 
 if __name__ == "__main__":
     # SBB
-    df = pd.read_csv(os.path.join(config["raw"], "stps.csv"))
-    df.rename(columns={"userid": "user_id", "startt": "started_at", "endt": "finished_at"}, inplace=True)
-    df["started_at"], df["finished_at"] = pd.to_datetime(df["started_at"]), pd.to_datetime(df["finished_at"])
-    # end period cut
-    end_period = datetime.datetime(2017, 12, 25)
-    df = df.loc[df["finished_at"] < end_period].copy()
-    df["started_at"] = df["started_at"].dt.tz_localize(tz="utc")
-    df["finished_at"] = df["finished_at"].dt.tz_localize(tz="utc")
-
-    # Geolife
-    # df = pd.read_csv(os.path.join(config["proc"], "stps.csv"))
+    # df = pd.read_csv(os.path.join(config["raw"], "stps.csv"))
     # df.rename(columns={"userid": "user_id", "startt": "started_at", "endt": "finished_at"}, inplace=True)
     # df["started_at"], df["finished_at"] = pd.to_datetime(df["started_at"]), pd.to_datetime(df["finished_at"])
+    # # end period cut
+    # end_period = datetime.datetime(2017, 12, 25)
+    # df = df.loc[df["finished_at"] < end_period].copy()
+    # df["started_at"] = df["started_at"].dt.tz_localize(tz="utc")
+    # df["finished_at"] = df["finished_at"].dt.tz_localize(tz="utc")
+
+    # Geolife
+    df = pd.read_csv(os.path.join(config["proc"], "stps.csv"))
+    df.rename(columns={"userid": "user_id", "startt": "started_at", "endt": "finished_at"}, inplace=True)
+    df["started_at"], df["finished_at"] = pd.to_datetime(df["started_at"]), pd.to_datetime(df["finished_at"])
 
     generate_Location(df, epsilon=50, user=True)

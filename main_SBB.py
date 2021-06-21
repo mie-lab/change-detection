@@ -4,6 +4,9 @@ import pickle
 import multiprocessing
 from tqdm import tqdm
 
+import multiprocessing
+from joblib import Parallel, delayed
+
 from utils.config import config
 from getActivitySet import getSets
 from similarityMeasures import getValidTrips, similarityMeasurement
@@ -89,21 +92,29 @@ if __name__ == "__main__":
     ### Step 4 (Optional): ploting of clustering results
     t_df = getValidTrips(time_window=time_window)
 
-    tqdm.pandas(desc="visualize behaviour classes")
-    t_df.groupby("userid").progress_apply(classVisualization, window_size=time_window)
+    # tqdm.pandas(desc="visualize behaviour classes")
+    # t_df.groupby("userid").progress_apply(classVisualization, window_size=time_window)
+    Parallel(n_jobs=multiprocessing.cpu_count())(
+        delayed(classVisualization)(group, time_window) for _, group in t_df.groupby("userid")
+    )
     print("Finished cluster visualization.")
 
     ### Step 5: change detection based on the cluster evolution
     t_df = getValidTrips(time_window=time_window)
 
-    tqdm.pandas(desc="change detection")
-    detectionResults = t_df.groupby("userid").progress_apply(
-        changeDetection,
-        window_size=time_window,
-        slidingThres=slidingThres,
-        lag=lag,
-        threshold=threshold,
-        influence=influence,
+    # tqdm.pandas(desc="change detection")
+    # detectionResults = t_df.groupby("userid").progress_apply(
+    #     changeDetection,
+    #     window_size=time_window,
+    #     slidingThres=slidingThres,
+    #     lag=lag,
+    #     threshold=threshold,
+    #     influence=influence,
+    # )
+    # print(detectionResults)
+    Parallel(n_jobs=multiprocessing.cpu_count())(
+        delayed(changeDetection)(group, time_window, slidingThres, lag, threshold, influence)
+        for _, group in t_df.groupby("userid")
     )
-    print(detectionResults)
+
     print("Finished change detection.")

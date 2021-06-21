@@ -91,10 +91,10 @@ def _plotHHIDetection(peaks, HHI_ls, idx, curr_path):
 
     HHI_df = pd.DataFrame(HHI_ls, columns=["HHI"], index=idx)
 
-    HHI_df["avgFilter"] = 0
-    HHI_df["stdFilter"] = 0
-    HHI_df["avgFilter"].iloc[1:] = peaks["avgFilter"][:-1]
-    HHI_df["stdFilter"].iloc[1:] = peaks["stdFilter"][:-1]
+    peaks["avgFilter"] = np.insert(peaks["avgFilter"], 0, 0)
+    peaks["stdFilter"] = np.insert(peaks["stdFilter"], 0, 0)
+    HHI_df["avgFilter"] = peaks["avgFilter"][:-1]
+    HHI_df["stdFilter"] = peaks["stdFilter"][:-1]
     HHI_df["HHI"].plot(label="HHI", color=colors[0])
 
     HHI_df["avgFilter"].plot(label="Moving mean", figsize=(6.4, 2), color=colors[1], alpha=0.5)
