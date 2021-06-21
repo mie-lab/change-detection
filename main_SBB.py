@@ -49,6 +49,8 @@ if __name__ == "__main__":
     )
 
     # save the combined distance matrix
+    if not os.path.exists(config["similarity"]):
+        os.makedirs(config["similarity"])
     with open(config["similarity"] + f"/similarity.pkl", "wb") as f:
         pickle.dump(all_dict, f, pickle.HIGHEST_PROTOCOL)
     print("Finished similarity measurements.")

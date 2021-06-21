@@ -61,7 +61,7 @@ def classVisualization(user_df, window_size):
     plt.xlabel(f"#Cluster {bestClusterNum}")
     plt.ylabel("Trip count")
     plt.savefig(curr_path + "\\num.png", bbox_inches="tight")
-    plt.close()
+    plt.close("all")
 
     df = filterClasses(df)
 
@@ -70,26 +70,27 @@ def classVisualization(user_df, window_size):
     plt.xlabel(f"#Cluster {bestClusterNum}")
     plt.ylabel("Trip count")
     plt.savefig(curr_path + "\\num_filtered.png", bbox_inches="tight")
-    plt.close()
+    plt.close("all")
 
     # visualize mode frequency plot per cluster
     mode_freq = df.groupby("cluster").apply(_getModeFrequency).dropna().reset_index()
-    if len(mode_freq.columns) != 2:
-        mode_freq.columns = ["clusters", "mode", "count"]
-        _drawModeFreqency(mode_freq)
-        plt.savefig(curr_path + "/freq.png", bbox_inches="tight")
-        plt.close()
+    if len(mode_freq.columns) == 2:
+        return None
+    mode_freq.columns = ["clusters", "mode", "count"]
+    _drawModeFreqency(mode_freq)
+    plt.savefig(curr_path + "/freq.png", bbox_inches="tight")
+    plt.close("all")
 
     # visualize 'length' and 'duration' scatter plot
     _drawScatter(df)
     plt.savefig(curr_path + "/stat.png", bbox_inches="tight", dpi=600)
-    plt.close()
+    plt.close("all")
 
     # visualize the relative evolution of trip class usage
     classCountEvolution_df, _ = draw_relative(df, window_size)
     classCountEvolution_df.to_csv(curr_path + "/countEvolution.csv")
     plt.savefig(curr_path + "/count_rel.png", bbox_inches="tight", dpi=600)
-    plt.close()
+    plt.close("all")
 
 
 def getHierarchicalResult(user):

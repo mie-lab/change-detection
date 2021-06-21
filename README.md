@@ -17,24 +17,24 @@ While the results in the paper are obtained from SBB Green Class dataset that is
 
 ## Code Structure
 The main entrance for SBB and Geolife datasets:
-- main_SBB: the whole pipeline for the SBB dataset.
-- main_Geolife: the whole pipeline for the Geolife dataset.
+- `main_SBB.py`: the whole pipeline for the SBB dataset.
+- `main_Geolife.py`: the whole pipeline for the Geolife dataset.
 
 Files containing the different steps of the pipeline:
-- getActivitySet.py: generate activity set and important trip set
-- similarityMeasures.py: similarity measurement 
-- clustering.py: clustering 
-- clusterVisualization.py: clustering result analysis and plot
-- changeDetection.py: change detection algorithms and result plot
+- `getActivitySet.py`: generate activity set and important trip set
+- `similarityMeasures.py`: similarity measurement 
+- `clustering.py`: clustering 
+- `clusterVisualization.py`: clustering result analysis and plot
+- `changeDetection.py`: change detection algorithms and result plot
 - jupyter notebook scripts:
-    - stat.ipynb: get preprocessed data size, prove of stability for the important trip set, and top1 location change detection (a proxy for home changes)
-    - tracking_quality.ipynb: select users based on tracking coverage.
-- And helper script in .utils/ folder:
-    - config.py: define data paths for intermediate results.
-    - data_figure.py: helper function to generate data for Figure 2.
-    - generateLocation.py: location generation from stay points.
-    - preProSBB.py: data loading and preprocessing (trip generation) for the SBB dataset.
-    - preProGeolife.py: data loading and preprocessing (trip generation) for the Geolife dataset.
+    - `stat.ipynb`: get preprocessed data size, prove of stability for the important trip set, and top1 location change detection (a proxy for home changes)
+    - `tracking_quality.ipynb`: select users based on tracking coverage.
+- And helper script in `.utils/` folder:
+    - `config.py`: define data paths for intermediate results.
+    - `data_figure.py`: helper function to generate data for Figure 2.
+    - `generateLocation.py`: location generation from stay points.
+    - `preProSBB.py`: data loading and preprocessing (trip generation) for the SBB dataset.
+    - `preProGeolife.py`: data loading and preprocessing (trip generation) for the Geolife dataset.
 
 ## User selection for SBB
 Users are pre-filtered based on overall and sliding window tracking quality

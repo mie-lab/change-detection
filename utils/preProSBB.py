@@ -40,6 +40,8 @@ def match_trips():
     merged_df = merged_df.loc[merged_df["endt"] < end_period]
 
     # save trip
+    if not os.path.exists(config["proc"]):
+        os.makedirs(config["proc"])
     merged_df.drop(columns="geometry").to_csv(os.path.join(config["proc"], "trips.csv"), index=False)
     merged_df.to_csv(os.path.join(config["proc"], "trips_wGeo.csv"), index=False)
 
