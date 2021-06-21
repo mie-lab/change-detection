@@ -11,7 +11,7 @@ This repository represents the implementation of the paper:
 While the results in the paper are obtained from SBB Green Class dataset that is not publicly available, we provide a runnable example of the pipeline on the Geolife dataset. The steps to run the pipeline are as follows:
 - Download the repo, install neccessary `Requirements and dependencies`.
 - Download the Geolife GPS tracking dataset from [here](https://www.microsoft.com/en-us/download/details.aspx?id=52367). Unzip and copy the `Data` folder into `geolife/`. The file structure should look like `geolife/Data/000/...`.
-- Define your working directories in `.utils/config.py`.
+- Define your working directories in `utils/config.py`.
 - Run `utils/preProGeolife.py` and `utils/generateLocation.py` scripts to generate trips and locations.
 - Run the `main_Geolife.py` script for the travel behaviour change detection pipeline. The Figures and detection results are saved in the `config["resultFig"]` folder.
 
