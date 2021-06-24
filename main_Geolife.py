@@ -20,9 +20,9 @@ time_window_ls = [5]
 time_window = 5
 
 # weights for similarity measurement
-mode_weight = 0.5
-distance_weight = 0.25
-duration_weight = 0.25
+mode_weight = 1 / 3
+distance_weight = 1 / 3
+duration_weight = 1 / 3
 
 # weights for change detection
 slidingThres = 0.3  # 30%
