@@ -1,14 +1,13 @@
 import pandas as pd
 import datetime
 import geopandas as gpd
-import os, sys
+import os
 from tqdm import tqdm
 from shapely import wkt
 
 
 from config import config
 
-sys.path.append(os.path.join(os.getcwd(), "trackintel"))
 import trackintel as ti
 
 

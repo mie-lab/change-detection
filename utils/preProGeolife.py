@@ -1,10 +1,8 @@
 import os
-import sys
 import pandas as pd
 from tqdm import tqdm
 from shapely.geometry import LineString
 
-sys.path.append(os.path.join(os.getcwd(), "trackintel"))
 import trackintel as ti
 from trackintel.io.dataset_reader import read_geolife, geolife_add_modes_to_triplegs
 from trackintel.geogr.distances import calculate_haversine_length
@@ -23,14 +21,13 @@ def readGeolife():
             user_with_mode.append(key)
     # only select user who has mode labels
     pfs = pfs.loc[pfs["user_id"].isin(user_with_mode)].copy()
-    pfs = pfs.drop_duplicates()
 
     # generate staypoints, triplegs and trips
     pfs, spts = pfs.as_positionfixes.generate_staypoints(time_threshold=5.0, print_progress=True)
     pfs, tpls = pfs.as_positionfixes.generate_triplegs(spts)
     tpls = geolife_add_modes_to_triplegs(tpls, mode_labels)
 
-    spts = ti.analysis.label.create_activity_flag(spts, time_threshold=15)
+    spts = ti.analysis.labelling.create_activity_flag(spts, time_threshold=15)
 
     spts, tpls, trips = ti.preprocessing.triplegs.generate_trips(spts, tpls, gap_threshold=15, print_progress=True)
     spts.rename(columns={"user_id": "userid", "started_at": "startt", "finished_at": "endt"}, inplace=True)
