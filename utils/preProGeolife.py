@@ -29,7 +29,7 @@ def readGeolife():
 
     spts = ti.analysis.labelling.create_activity_flag(spts, time_threshold=15)
 
-    spts, tpls, trips = ti.preprocessing.triplegs.generate_trips(spts, tpls, gap_threshold=15, print_progress=True)
+    spts, tpls, trips = ti.preprocessing.triplegs.generate_trips(spts, tpls, gap_threshold=15)
     spts.rename(columns={"user_id": "userid", "started_at": "startt", "finished_at": "endt"}, inplace=True)
     if not os.path.exists(config["proc"]):
         os.makedirs(config["proc"])
