@@ -30,7 +30,7 @@ def generate_Location(df, epsilon, user):
         agg_level = "dataset"
 
     stps, locs = gdf.as_staypoints.generate_locations(
-        epsilon=epsilon, num_samples=1, distance_metric="haversine", agg_level=agg_level
+        epsilon=epsilon, num_samples=1, distance_metric="haversine", agg_level=agg_level, n_jobs=-1
     )
     print("cluster complete")
     # rename to avoid conflict

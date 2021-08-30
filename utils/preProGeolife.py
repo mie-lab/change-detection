@@ -23,7 +23,9 @@ def readGeolife():
     pfs = pfs.loc[pfs["user_id"].isin(user_with_mode)].copy()
 
     # generate staypoints, triplegs and trips
-    pfs, spts = pfs.as_positionfixes.generate_staypoints(time_threshold=5.0, print_progress=True)
+    pfs, spts = pfs.as_positionfixes.generate_staypoints(
+        time_threshold=5.0, gap_threshold=1e6, print_progress=True, n_jobs=-1
+    )
     pfs, tpls = pfs.as_positionfixes.generate_triplegs(spts)
     tpls = geolife_add_modes_to_triplegs(tpls, mode_labels)
 
