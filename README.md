@@ -63,3 +63,8 @@ Users who changed their top1 location during the study (a proxy for home locatio
 * trackintel
 * tqdm
 * scikit-learn-extra
+
+## Contact
+If you have any questions, please let me know: 
+- Ye Hong {hongy@ethz.ch}
+
