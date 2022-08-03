@@ -1,0 +1,7 @@
+numpy
+pandas
+geopandas
+matplotlib
+trackintel
+tqdm
+scikit-learn-extra
