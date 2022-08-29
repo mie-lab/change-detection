@@ -64,6 +64,20 @@ Users who changed their top1 location during the study (a proxy for home locatio
 * tqdm
 * scikit-learn-extra
 
+## Citation
+If you find this code useful for your work or use it in your project, please consider citing:
+```shell
+@InProceedings{Hong_2021_GIScience,
+  author    =	{Hong, Ye and Xin, Yanan and Martin, Henry and Bucher, Dominik and Raubal, Martin},
+  title     =	{A Clustering-Based Framework for Individual Travel Behaviour Change Detection},
+  booktitle =	{11th International Conference on Geographic Information Science (GIScience 2021) - Part II},
+  pages     =	{4:1--4:15},
+  year      =	{2021},
+  volume    =	{208},
+  doi       =	{10.4230/LIPIcs.GIScience.2021.II.4},
+}
+```
+
 ## Contact
 If you have any questions, please let me know: 
 - Ye Hong {hongy@ethz.ch}
